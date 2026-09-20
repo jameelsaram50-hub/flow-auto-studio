@@ -1,0 +1,19 @@
+{
+  "projectId": "DebugTest_LiveView",
+  "runId": "run_1789902567484",
+  "status": "generating",
+  "totalScenes": 1,
+  "speedMode": "fast",
+  "imageQuality": "standard",
+  "createdAt": "2026-09-20T11:09:27.498Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "A breathtaking macro photograph of a dewdrop on a neon violet lotus petal, ray-traced reflections, 8k",
+      "status": "completed",
+      "image": "DebugTest_LiveView_scene_1_3053.png",
+      "imageUrl": "/api/images/DebugTest_LiveView_scene_1_3053.png"
+    }
+  ],
+  "generatedImagesCount": 1
+}

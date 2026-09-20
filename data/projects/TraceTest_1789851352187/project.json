@@ -1,0 +1,23 @@
+{
+  "projectId": "TraceTest_1789851352187",
+  "runId": "run_1789851352223",
+  "status": "generating",
+  "totalScenes": 2,
+  "speedMode": "slow",
+  "imageQuality": "standard",
+  "createdAt": "2026-09-19T20:55:52.272Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "A beautiful sunset over mountains",
+      "status": "pending",
+      "image": null
+    },
+    {
+      "id": 2,
+      "prompt": "A cat sitting on a table",
+      "status": "pending",
+      "image": null
+    }
+  ]
+}

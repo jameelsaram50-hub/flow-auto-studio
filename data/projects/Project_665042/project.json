@@ -1,0 +1,26 @@
+{
+  "projectId": "Project_665042",
+  "runId": "run_1789922665047",
+  "status": "generating",
+  "totalScenes": 2,
+  "speedMode": "fast",
+  "imageQuality": "standard",
+  "createdAt": "2026-09-20T16:44:25.072Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "A cinematic 2D animated scene on a long, straight dirt road cutting through the Polish countryside. 1 stylized flat 2D cartoon human character with normal realistic adult human height and proportions — approximately 7 to 7.5 head-lengths tall, standing at natural human scale within the environment. Character 1 has a perfectly round, smooth, white circle head with ONLY two small black dot eyes and one small simple neutral straight horizontal line mouth — absolutely NO nose, NO eyebrows, NO hair, NO ears, NO other facial features. Solid full proportional arms with visible thickness ending in white hands with five clearly defined fingers. Solid full proportional legs with visible thickness ending in tall polished black leather jackboots. Torso is a flat-filled feldgrau (grey-green) military tunic shape with a brown leather belt, brown leather Y-strap harness, and brown ammunition pouches at the waist. A dark steel helmet sits atop the white circle head. The character stands alone in the center of the dirt road, facing forward, rifle held upright at his side, body tall and straight. The background shows a wide Polish countryside — golden wheat fields stretching on both sides, a bright clean blue sky with soft white fluffy clouds, a row of green deciduous trees lining the road in the distance, warm golden sunlight casting long soft shadows across the dirt path, and gentle rolling green hills on the horizon. Color style: natural, bright, clean, and inviting like an animated 2D storybook — clean bright sky blue, golden-yellow wheat fields, natural lush green trees, warm tan dirt road, soft white clouds, warm golden sunlight. Every background element has its own unique natural color. Painterly semi-realistic background with clean lines and soft brushwork. Characters have clean bold black outlines with flat color fills. Background elements have NO outlines. Characters are at normal realistic adult human scale relative to the environment. 16:9 widescreen. Digital 2D animation frame.",
+      "status": "completed",
+      "image": "Project_665042_scene_1_0007.png",
+      "imageUrl": "/api/images/Project_665042_scene_1_0007.png"
+    },
+    {
+      "id": 2,
+      "prompt": "A cinematic 2D animated scene on the same Polish dirt road, now viewed from a slightly closer medium shot. 1 stylized flat 2D cartoon human character with normal realistic adult human height and proportions — approximately 7 to 7.5 head-lengths tall, standing at natural human scale within the environment. Character 1 has a perfectly round, smooth, white circle head with ONLY two small black dot eyes and one small simple small upward curve mouth suggesting youthful confidence — absolutely NO nose, NO eyebrows, NO hair, NO ears, NO other facial features. Solid full proportional arms with visible thickness ending in white hands with five clearly defined fingers. Solid full proportional legs with visible thickness ending in tall polished black leather jackboots. Torso is a flat-filled feldgrau (grey-green) military tunic shape with a brown leather belt, brown leather Y-strap harness, and brown ammunition pouches. A dark steel helmet sits atop the white circle head. The character stands tall and upright on the road, chest out, one hand resting on his belt, looking confident and young. The background shows the Polish countryside in early autumn — golden and amber-toned fields, a few leaves on trees beginning to turn orange and yellow, a bright clean blue sky with scattered soft white clouds, warm golden September sunlight bathing the scene, a small wooden farmhouse with a warm brown roof visible far in the distance, and a low stone wall along the roadside. Color style: natural, bright, clean, and inviting like an animated 2D storybook — clean bright sky blue, golden-amber autumn fields, warm orange-yellow turning leaves, honey-brown wood farmhouse, warm golden sunlight, soft white clouds, warm tan stone wall. Every background element has its own unique natural color. Painterly semi-realistic background with clean lines and soft brushwork. Characters have clean bold black outlines with flat color fills. Background elements have NO outlines. Characters are at normal realistic adult human scale relative to the environment. 16:9 widescreen. Digital 2D animation frame.",
+      "status": "completed",
+      "image": "Project_665042_scene_2_5424.png",
+      "imageUrl": "/api/images/Project_665042_scene_2_5424.png"
+    }
+  ],
+  "generatedImagesCount": 2
+}

@@ -1,0 +1,21 @@
+{
+  "projectId": "Verification_Run",
+  "runId": "run_1789826105189",
+  "status": "generating",
+  "totalScenes": 2,
+  "createdAt": "2026-09-19T13:55:05.235Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "A futuristic cybernetic tiger with glowing stripes in an alleyway",
+      "status": "pending",
+      "image": null
+    },
+    {
+      "id": 2,
+      "prompt": "A calm Japanese garden with koi fish and cherry blossoms",
+      "status": "pending",
+      "image": null
+    }
+  ]
+}

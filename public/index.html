@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Flow Image Automator — TurboFlow Bridge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=3.5">
+</head>
+<body>
+  <div class="background-effects">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <header class="app-header">
+    <div class="header-content">
+      <div class="brand">
+        <div class="logo-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="url(#cyan-gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="url(#cyan-gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="url(#cyan-gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="cyan-gradient" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#38bdf8"/>
+                <stop offset="1" stop-color="#818cf8"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Flow Auto Studio</h1>
+          <p class="brand-subtitle">1-Click Automated Batch Image Generator for Google Flow</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="connection-badge" id="server-status">
+          <span class="pulse-dot"></span>
+          <span class="status-text">Server Active (Port 3001)</span>
+        </div>
+        <div id="session-status-badge" style="display:none; align-items:center; gap:6px; padding:5px 12px; border-radius:20px; font-size:11.5px; font-weight:600; border:1px solid rgba(34,197,94,0.3); background:rgba(34,197,94,0.1); color:#4ade80;">
+          <span>🔑</span><span id="session-status-text">Login Saved</span>
+        </div>
+        <button class="btn btn-sm btn-outline" id="btn-toggle-monitor" title="Toggle Live Chrome Canvas &amp; Progress Monitor" style="display: inline-flex; align-items: center; gap: 6px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+          <span class="pulse-dot" style="background-color: #38bdf8; box-shadow: 0 0 8px #38bdf8; width: 8px; height: 8px;"></span>
+          <span>🖥️ Live Chrome View</span>
+        </button>
+        <button class="btn btn-secondary" id="btn-open-folder" title="Open turboflow output folder in Windows Explorer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          Downloads Folder
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <!-- Prompt Input Section -->
+    <section class="card input-card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h2 class="card-title">Image Prompts</h2>
+          <span class="prompt-counter" id="prompt-counter">0 Prompts</span>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-outline" id="btn-sample-prompts">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Load Sample Prompts
+          </button>
+          <button class="btn btn-sm btn-ghost" id="btn-clear-prompts">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div class="project-name-row" style="margin-bottom: 14px; display: flex; align-items: center; gap: 12px;">
+        <label for="project-name-input" style="font-size: 0.82rem; font-weight: 600; color: #94a3b8; white-space: nowrap;">Project Name:</label>
+        <input type="text" id="project-name-input" placeholder="e.g. London_Documentary_001" style="flex: 1; background: rgba(2, 6, 23, 0.7); border: 1px solid var(--border-color); color: #f8fafc; padding: 8px 14px; border-radius: var(--radius-sm); font-size: 0.85rem; outline: none; font-family: 'JetBrains Mono', monospace;" />
+      </div>
+
+      <div class="input-wrapper">
+        <textarea
+          id="prompt-input"
+          class="prompt-textarea"
+          placeholder="Enter your image prompts here (one prompt per line)...&#10;&#10;Example:&#10;Cinematic portrait of a cyberpunk detective walking in neon rain, volumetric lighting, 8k&#10;Majestic snow leopard in the Himalayan mountain peaks at golden hour sunrise&#10;Cozy vintage coffee shop interior on a rainy autumn evening, warm amber glow"
+          rows="8"
+          spellcheck="false"
+        ></textarea>
+        <div class="textarea-hint">
+          <span>💡 Tip: Each line will generate a separate image in Google Flow automatically.</span>
+          <span id="char-counter">0 characters</span>
+        </div>
+      </div>
+
+      <!-- Speed & Quality Selection Row -->
+      <div class="speed-selection-row">
+        <div class="speed-group-item">
+          <span class="speed-title">⚡ Generation Speed:</span>
+          <div class="speed-buttons-group">
+            <label class="speed-pill-option active" id="speed-opt-fast" title="3 concurrent generations with 100ms instant stagger — MAXIMUM SPEED!">
+              <input type="radio" name="speedMode" value="fast" checked>
+              <span class="pill-dot"></span>
+              <span>🚀 Turbo Ultra (3x Max Speed)</span>
+            </label>
+            <label class="speed-pill-option" id="speed-opt-balanced" title="2 concurrent generations with 2s safe stagger">
+              <input type="radio" name="speedMode" value="balanced">
+              <span class="pill-dot"></span>
+              <span>⚡ Balanced (2x)</span>
+            </label>
+            <label class="speed-pill-option" id="speed-opt-slow" title="1 image sequentially with 3s stagger (slow)">
+              <input type="radio" name="speedMode" value="slow">
+              <span class="pill-dot"></span>
+              <span>🛡️ Safe Slow (1x)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="quality-group-item">
+          <span class="speed-title">📥 Download Mode:</span>
+          <div class="speed-buttons-group">
+            <label class="speed-pill-option active" id="quality-opt-std" title="Downloads image directly without waiting for Google 2K upscaler (Saves 6-10 seconds per image!)">
+              <input type="radio" name="imageQuality" value="standard" checked>
+              <span class="pill-dot"></span>
+              <span>⚡ Instant 1080p (Fastest)</span>
+            </label>
+            <label class="speed-pill-option" id="quality-opt-2k" title="Runs Google 2K Upscaler before saving (+5-8 seconds per image)">
+              <input type="radio" name="imageQuality" value="2k">
+              <span class="pill-dot"></span>
+              <span>💎 2K Upscaled</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Action Section -->
+      <div class="action-footer">
+        <button id="btn-generate" class="btn btn-primary btn-hero">
+          <span class="btn-glow"></span>
+          <span class="btn-content">
+            <svg class="btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span class="btn-text">Generate in Google Flow</span>
+          </span>
+        </button>
+
+        <div class="quick-options">
+          <label class="toggle-control" title="Automatically opens Google Flow & extension when clicking Generate">
+            <input type="checkbox" id="chk-auto-launch" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Auto-Launch Chrome & Extension</span>
+          </label>
+
+          <button class="btn btn-ghost btn-sm" id="btn-relaunch" title="Manually re-launch Chrome if window was closed">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Re-open Chrome
+          </button>
+
+          <button class="btn btn-ghost btn-sm" id="btn-reload-ext" title="Force reload the TurboFlow extension in Chrome (fixes stuck extension)" style="border-color: rgba(99,102,241,0.4); color: #818cf8;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6"/><path d="M2 12a10 10 0 1 0 2.35-6.35L2 2"/></svg>
+            🔌 Reload Extension
+          </button>
+
+          <button class="btn btn-ghost btn-sm" id="btn-save-session" title="Save your Google login so Chrome auto-logs in every time (no re-login needed)" style="border-color: rgba(34,197,94,0.4); color: #4ade80;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            💾 Save Login Session
+          </button>
+
+          <button class="btn btn-ghost btn-sm" id="btn-kill-chrome" title="Close Chrome window cleanly" style="border-color: rgba(239,68,68,0.3); color: #f87171;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            Close Chrome
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Real-time Live Execution & Progress Monitor Screen -->
+    <section class="card progress-card" id="progress-section">
+      <div class="card-header">
+        <div class="card-title-group">
+          <span class="monitor-live-dot"></span>
+          <h3 class="card-title">Live Execution & Progress Monitor</h3>
+          <span class="status-pill" id="run-status-pill">Ready</span>
+          <span class="speed-badge" id="monitor-speed-badge">⚡ Turbo Balanced</span>
+        </div>
+        <div class="monitor-header-actions">
+          <span class="run-id-tag" id="active-run-id"></span>
+          <button class="btn btn-sm" id="btn-focus-chrome" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;" title="Bring Chrome window directly to the front so you can watch Google Flow live">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            <span>🌐 View Chrome Window</span>
+          </button>
+          <button class="btn btn-sm" id="btn-reset-session" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;" title="Reset session from zero — clears all stale logs and active runs">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            <span>Start Fresh</span>
+          </button>
+          <button class="btn btn-sm btn-dismiss-monitor" id="btn-dismiss-monitor" title="Dismiss / Hide this progress screen (You can re-open it anytime)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <span>Dismiss Screen</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Chrome Browser Viewport (Main Screen Centerpiece) -->
+      <div class="chrome-view-panel" id="chrome-view-panel" style="margin-top: 14px; margin-bottom: 16px;">
+        <div class="chrome-view-header">
+          <div class="chrome-view-title-group">
+            <span class="live-recording-dot"></span>
+            <h4>🖥️ Live Chrome Browser Canvas (Google Flow)</h4>
+            <span class="chrome-view-badge" id="chrome-view-status">● Live Video Stream</span>
+          </div>
+          <div class="chrome-view-actions">
+            <button type="button" class="btn btn-xs btn-ghost" id="btn-open-real-chrome" style="color: #38bdf8; border-color: rgba(56,189,248,0.3); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+              🌐 Bring Chrome to Front
+            </button>
+            <button type="button" class="btn btn-xs btn-ghost" id="btn-expand-chrome-view" style="color: #94a3b8; padding: 5px 12px; border-radius: 6px; cursor: pointer;" onclick="window.openPreview(document.getElementById('chrome-live-img').src, 'Live Chrome Canvas View')">
+              ⛶ Fullscreen Expand
+            </button>
+          </div>
+        </div>
+        <div class="chrome-view-body">
+          <img id="chrome-live-img" src="/api/debug/live-frame.jpg" alt="Live Chrome Browser View" onclick="window.openPreview(this.src, 'Live Chrome Canvas View')" />
+          <div class="chrome-view-overlay" id="chrome-view-overlay">Google Flow Canvas Live</div>
+        </div>
+      </div>
+
+      <!-- Overall Progress Bar -->
+      <div class="overall-progress-box">
+        <div class="overall-progress-header">
+          <span class="progress-scenes-text" id="progress-scenes-text">0 of 0 Scenes Ready</span>
+          <span class="progress-percent-text" id="progress-percent-text">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Pipeline Stepper -->
+      <div class="pipeline-stepper">
+        <div class="step-item" id="step-1">
+          <div class="step-icon">1</div>
+          <div class="step-info">
+            <div class="step-title">Prompts Queued</div>
+            <div class="step-desc" id="step-1-desc">Ready to sync</div>
+          </div>
+        </div>
+        <div class="step-line" id="line-1"></div>
+        <div class="step-item" id="step-2">
+          <div class="step-icon">2</div>
+          <div class="step-info">
+            <div class="step-title">Chrome Opened</div>
+            <div class="step-desc" id="step-2-desc">Google Flow + Extension</div>
+          </div>
+        </div>
+        <div class="step-line" id="line-2"></div>
+        <div class="step-item" id="step-3">
+          <div class="step-icon">3</div>
+          <div class="step-info">
+            <div class="step-title">Extension Synced</div>
+            <div class="step-desc" id="step-3-desc">Prompts transferred</div>
+          </div>
+        </div>
+        <div class="step-line" id="line-3"></div>
+        <div class="step-item" id="step-4">
+          <div class="step-icon">4</div>
+          <div class="step-info">
+            <div class="step-title">Batch Generating</div>
+            <div class="step-desc" id="step-4-desc">Waiting for images</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Banner Alert with Completion Dismiss Action -->
+      <div class="banner-alert" id="status-alert">
+        <div class="alert-icon" id="status-alert-icon">⚡</div>
+        <div class="alert-text" id="status-alert-text">Click "Generate in Google Flow" to begin automated generation.</div>
+        <button class="btn btn-xs btn-alert-dismiss" id="btn-alert-dismiss" style="display: none;">Dismiss & View Gallery</button>
+      </div>
+
+      <!-- Split View: Scene-by-Scene Tracker & Real-Time Console Activity -->
+      <div class="monitor-panels-row">
+        <!-- Scene-by-Scene Status Cards -->
+        <div class="monitor-panel scenes-panel">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+              <h4>Scene Generation Tracker</h4>
+            </div>
+            <span class="panel-badge" id="scenes-badge">0 / 0</span>
+          </div>
+          <div class="scenes-container" id="scenes-container">
+            <div class="empty-scenes-hint">Prompts queued for generation will appear here scene-by-scene.</div>
+          </div>
+        </div>
+
+        <!-- Real-time Terminal Logs -->
+        <div class="monitor-panel logs-panel">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              <h4>Live Extension & Flow Console</h4>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button type="button" class="btn btn-xs" id="btn-console-latest-shot" style="display: none; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 11px; padding: 2px 8px; border-radius: 6px; cursor: pointer;" title="Open full Chrome canvas screenshot">
+                📸 View Chrome Snapshot
+              </button>
+              <span class="panel-badge log-live-badge">● Streaming</span>
+            </div>
+          </div>
+          <div class="terminal-container" id="terminal-container">
+            <div class="terminal-logs" id="terminal-logs">
+              <div class="terminal-row"><span class="log-tag tag-sys">[System]</span> Live console initialized. Waiting for Google Flow telemetry...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live Generated Images Gallery -->
+    <section class="card gallery-card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h2 class="card-title">Generated Images Feed</h2>
+          <span class="gallery-counter" id="gallery-counter">0 Images</span>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-ghost" id="btn-refresh-gallery">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div class="gallery-grid" id="gallery-grid">
+        <div class="gallery-empty-state">
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+          </div>
+          <h4>No Images Generated Yet</h4>
+          <p>Once Google Flow finishes creating images, they will appear here live from <code>Downloads/turboflow</code>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Image Modal for Full Preview -->
+  <div class="modal" id="image-modal">
+    <div class="modal-overlay" id="modal-overlay"></div>
+    <div class="modal-content">
+      <button class="modal-close" id="modal-close">&times;</button>
+      <img src="" alt="Full Preview" id="modal-img">
+      <div class="modal-footer">
+        <span class="modal-filename" id="modal-filename"></span>
+        <a href="#" class="btn btn-sm btn-primary" id="modal-download" download>Download Image</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=3.5"></script>
+</body>
+</html>

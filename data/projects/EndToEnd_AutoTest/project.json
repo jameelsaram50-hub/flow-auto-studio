@@ -1,0 +1,19 @@
+{
+  "projectId": "EndToEnd_AutoTest",
+  "runId": "run_1789898236197",
+  "status": "generating",
+  "totalScenes": 1,
+  "speedMode": "fast",
+  "imageQuality": "standard",
+  "createdAt": "2026-09-20T09:57:16.252Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "Majestic bald eagle soaring over snow-capped Canadian mountains at sunset, crisp photorealistic 8k",
+      "status": "completed",
+      "image": "EndToEnd_AutoTest_scene_1_2294.png",
+      "imageUrl": "/api/images/EndToEnd_AutoTest_scene_1_2294.png"
+    }
+  ],
+  "generatedImagesCount": 2
+}

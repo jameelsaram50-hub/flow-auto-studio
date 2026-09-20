@@ -1,0 +1,41 @@
+{
+  "projectId": "Project_421934",
+  "runId": "run_1789847421942",
+  "status": "generating",
+  "totalScenes": 5,
+  "speedMode": "fast",
+  "imageQuality": "standard",
+  "createdAt": "2026-09-19T19:50:21.942Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "Cinematic portrait of a cyberpunk detective walking through neon-lit rain, reflections in puddles, atmospheric haze, 8k resolution",
+      "status": "pending",
+      "image": null
+    },
+    {
+      "id": 2,
+      "prompt": "Majestic snow leopard perched on Himalayan mountain cliffs during golden hour sunrise, crisp photorealistic textures",
+      "status": "pending",
+      "image": null
+    },
+    {
+      "id": 3,
+      "prompt": "Cozy warm vintage coffee shop interior on a rainy autumn evening, soft bokeh lights, steaming cup on wooden table",
+      "status": "pending",
+      "image": null
+    },
+    {
+      "id": 4,
+      "prompt": "Futuristic holographic laboratory with floating AI data visualizers, sleek minimalist architecture, deep blue and amber tones",
+      "status": "pending",
+      "image": null
+    },
+    {
+      "id": 5,
+      "prompt": "Mystical bioluminescent enchanted forest with glowing flora, ethereal gentle fog, moonlight filtering through ancient trees",
+      "status": "pending",
+      "image": null
+    }
+  ]
+}

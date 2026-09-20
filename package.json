@@ -1,0 +1,20 @@
+{
+  "name": "ai-image-automation-flow",
+  "version": "1.0.0",
+  "description": "1-Click AI Image Automation for Google Flow & TurboFlow Extension",
+  "main": "electron/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "app": "electron .",
+    "server": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "playwright-core": "^1.63.0"
+  },
+  "devDependencies": {
+    "electron": "^35.7.5"
+  }
+}

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Production packaged binaries (Avoid GitHub 100MB file limit)
+FlowAutoStudio-win32-x64/
+*.lnk
+dist/
+build/
+
+# Temporary test scripts and logs
+scratch/
+*.log
+flow-auto-studio.log
+
+# Profiles and temporary data
+.turboflow-chrome-profile/
+.turboflow-session-backup/
+.turboflow-extension/
+
+# OS files
+Thumbs.db
+.DS_Store

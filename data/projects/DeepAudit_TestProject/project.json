@@ -1,0 +1,30 @@
+{
+  "projectId": "DeepAudit_TestProject",
+  "runId": "run_1789799832278",
+  "status": "completed",
+  "totalScenes": 3,
+  "createdAt": "2026-09-19T06:37:12.303Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "Prompt 1: Neon cyberpunk cyber cat in Tokyo rain",
+      "status": "completed",
+      "image": "audit_test_image.png",
+      "imageUrl": "/api/images/audit_test_image.png"
+    },
+    {
+      "id": 2,
+      "prompt": "Prompt 2: Golden eagle soaring over alpine mountains",
+      "status": "pending",
+      "image": null
+    },
+    {
+      "id": 3,
+      "prompt": "Prompt 3: Vintage cozy coffee shop with fireplace",
+      "status": "pending",
+      "image": null
+    }
+  ],
+  "completedAt": "2026-09-19T06:37:12.330Z",
+  "generatedImagesCount": 1
+}

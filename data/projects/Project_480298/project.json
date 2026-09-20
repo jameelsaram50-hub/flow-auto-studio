@@ -1,0 +1,20 @@
+{
+  "projectId": "Project_480298",
+  "runId": "run_1789918480301",
+  "status": "completed",
+  "totalScenes": 1,
+  "speedMode": "fast",
+  "imageQuality": "standard",
+  "createdAt": "2026-09-20T15:34:40.301Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "a dog pic walking on the road",
+      "status": "completed",
+      "image": "Project_480298_scene_1_2834.png",
+      "imageUrl": "/api/images/Project_480298_scene_1_2834.png"
+    }
+  ],
+  "completedAt": "2026-09-20T15:35:05.430Z",
+  "generatedImagesCount": 1
+}

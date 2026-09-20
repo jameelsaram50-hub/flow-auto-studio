@@ -1,0 +1,21 @@
+{
+  "projectId": "Live_Test_8414",
+  "runId": "run_1789825918511",
+  "status": "generating",
+  "totalScenes": 2,
+  "createdAt": "2026-09-19T13:51:58.585Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "A futuristic car driving on an empty highway at sunset",
+      "status": "pending",
+      "image": null
+    },
+    {
+      "id": 2,
+      "prompt": "A cozy cabin in the woods with smoke from the chimney",
+      "status": "pending",
+      "image": null
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "projectId": "LiveTest_1789885498135",
+  "runId": "run_1789885498162",
+  "status": "generating",
+  "totalScenes": 1,
+  "speedMode": "slow",
+  "imageQuality": "standard",
+  "createdAt": "2026-09-20T06:24:58.162Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "A bright red apple on a wooden table",
+      "status": "pending",
+      "image": null
+    }
+  ]
+}

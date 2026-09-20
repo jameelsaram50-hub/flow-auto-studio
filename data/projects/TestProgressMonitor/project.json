@@ -1,0 +1,22 @@
+{
+  "projectId": "TestProgressMonitor",
+  "runId": "run_1789842077391",
+  "status": "generating",
+  "totalScenes": 2,
+  "speedMode": "balanced",
+  "createdAt": "2026-09-19T18:21:17.458Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "Cinematic portrait of cyberpunk warrior in neon rain",
+      "status": "pending",
+      "image": null
+    },
+    {
+      "id": 2,
+      "prompt": "Majestic eagle flying over alpine snowy mountains",
+      "status": "pending",
+      "image": null
+    }
+  ]
+}

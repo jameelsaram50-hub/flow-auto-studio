@@ -1,0 +1,46 @@
+{
+  "projectId": "Project_859787",
+  "runId": "run_1789821859810",
+  "status": "completed",
+  "totalScenes": 5,
+  "createdAt": "2026-09-19T12:44:19.838Z",
+  "scenes": [
+    {
+      "id": 1,
+      "prompt": "Cinematic portrait of a cyberpunk detective walking through neon-lit rain, reflections in puddles, atmospheric haze, 8k resolution",
+      "status": "completed",
+      "image": "Project_859787_scene_1_3178.png",
+      "imageUrl": "/api/images/Project_859787_scene_1_3178.png"
+    },
+    {
+      "id": 2,
+      "prompt": "Majestic snow leopard perched on Himalayan mountain cliffs during golden hour sunrise, crisp photorealistic textures",
+      "status": "completed",
+      "image": "Project_859787_scene_2_1859.png",
+      "imageUrl": "/api/images/Project_859787_scene_2_1859.png"
+    },
+    {
+      "id": 3,
+      "prompt": "Cozy warm vintage coffee shop interior on a rainy autumn evening, soft bokeh lights, steaming cup on wooden table",
+      "status": "completed",
+      "image": "Project_859787_scene_3_9786.png",
+      "imageUrl": "/api/images/Project_859787_scene_3_9786.png"
+    },
+    {
+      "id": 4,
+      "prompt": "Futuristic holographic laboratory with floating AI data visualizers, sleek minimalist architecture, deep blue and amber tones",
+      "status": "completed",
+      "image": "Project_859787_scene_4_7310.png",
+      "imageUrl": "/api/images/Project_859787_scene_4_7310.png"
+    },
+    {
+      "id": 5,
+      "prompt": "Mystical bioluminescent enchanted forest with glowing flora, ethereal gentle fog, moonlight filtering through ancient trees",
+      "status": "completed",
+      "image": "Project_859787_scene_5_4046.png",
+      "imageUrl": "/api/images/Project_859787_scene_5_4046.png"
+    }
+  ],
+  "generatedImagesCount": 5,
+  "completedAt": "2026-09-19T12:50:54.125Z"
+}
