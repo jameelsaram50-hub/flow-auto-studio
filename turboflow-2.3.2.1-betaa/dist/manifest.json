@@ -1,0 +1,82 @@
+{
+    "manifest_version": 3,
+    "name": "TurboFlow - Auto Flow on Google Flow",
+    "version": "2.3.2.1",
+    "version_name": "2.3.2.1 (beta)",
+  "description": "Auto Flow on Google Flow. Batch generate Veo 3.1 videos & Nano Banana Pro images, auto 4K upscale, auto-download.",
+  "permissions": [
+    "identity",
+    "sidePanel",
+    "scripting",
+    "storage",
+    "tabs",
+    "downloads",
+    "activeTab",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://labs.google/*",
+    "https://flow.google.com/*",
+    "https://turboflow-server.vercel.app/*",
+    "https://*.lemonsqueezy.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://localhost:3001/*",
+    "http://localhost:5173/*"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://flow.google.com/*",
+        "https://*.flow.google.com/*",
+        "https://labs.google/fx/*/tools/flow/*",
+        "https://labs.google/fx/tools/flow/*"
+      ],
+      "js": [
+        "qw-4d5e6f7a.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://flow.google.com/*",
+        "https://*.flow.google.com/*",
+        "https://labs.google/fx/*/tools/flow/*",
+        "https://labs.google/fx/tools/flow/*"
+      ],
+      "js": [
+        "zr-7f2a1b3c.js"
+      ],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sidepanel.html",
+        "kx-f1c2d3e4.css",
+        "turboflow_bridge.js",
+        "icons/*"
+      ],
+      "matches": [
+        "https://flow.google.com/*",
+        "https://*.flow.google.com/*",
+        "https://labs.google/*"
+      ]
+    }
+  ]
+}

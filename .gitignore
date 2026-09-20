@@ -4,13 +4,22 @@ node_modules/
 # Production packaged binaries (Avoid GitHub 100MB file limit)
 FlowAutoStudio-win32-x64/
 *.lnk
-dist/
+/dist/
 build/
 
-# Temporary test scripts and logs
+# Temporary test scenes and logs
+public/debug/scenes/
 scratch/
 *.log
 flow-auto-studio.log
+
+# Temporary test projects
+data/projects/Project_*
+data/projects/LiveTest_*
+data/projects/TraceTest_*
+data/projects/TestStealthRun*
+data/projects/DeepAudit_*
+data/projects/Verification_*
 
 # Profiles and temporary data
 .turboflow-chrome-profile/
@@ -20,3 +29,4 @@ flow-auto-studio.log
 # OS files
 Thumbs.db
 .DS_Store
+
