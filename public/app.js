@@ -617,6 +617,37 @@ btnRelaunch?.addEventListener('click', async () => {
   }
 });
 
+// 🧹 Fix Unusual Activity button
+const btnFixUnusual = document.getElementById('btn-fix-unusual');
+btnFixUnusual?.addEventListener('click', async () => {
+  const originalHTML = btnFixUnusual.innerHTML;
+  btnFixUnusual.disabled = true;
+  btnFixUnusual.innerHTML = '<span>⏳</span><span>Clearing Flow Data...</span>';
+  try {
+    const res = await fetch('/api/fix-unusual-activity', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      btnFixUnusual.innerHTML = '<span>✅</span><span>Cache Reset!</span>';
+      btnFixUnusual.style.borderColor = 'rgba(34,197,94,0.5)';
+      btnFixUnusual.style.color = '#4ade80';
+      showToast('🧹 Flow Cache Reset Complete!',
+        'Google Flow site data has been cleared and a fresh canvas opened. "Unusual Activity" errors are now resolved.', 8000);
+      fetchStatus();
+    } else {
+      throw new Error(data.error || 'Failed to reset site data');
+    }
+  } catch (e) {
+    alert('Could not reset Google Flow data: ' + e.message);
+  } finally {
+    setTimeout(() => {
+      btnFixUnusual.disabled = false;
+      btnFixUnusual.innerHTML = originalHTML;
+      btnFixUnusual.style.borderColor = '';
+      btnFixUnusual.style.color = '';
+    }, 4000);
+  }
+});
+
 // 🔌 Reload Extension button
 const btnReloadExt = document.getElementById('btn-reload-ext');
 btnReloadExt?.addEventListener('click', async () => {

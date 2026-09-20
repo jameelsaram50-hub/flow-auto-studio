@@ -254,6 +254,95 @@ async function getLiveFrameBuffer() {
 let activeBrowserContext = null;
 let isJobRunning = false;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Google Flow Helpers: Project Management, Unusual Activity & Cache Reset
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function createNewProject(page) {
+  console.log('[Playwright Engine] 🆕 Opening brand new project canvas in Google Flow...');
+  try {
+    await page.goto('https://flow.google.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    bringChromeToFront();
+    await page.waitForTimeout(3000);
+
+    const newBtn = page.locator('button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
+    if (await newBtn.isVisible({ timeout: 15000 }).catch(() => false)) {
+      const box = await newBtn.boundingBox().catch(() => null);
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
+        await page.waitForTimeout(150);
+      }
+      await newBtn.click();
+      await page.waitForURL('**/project/**', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+      console.log('[Playwright Engine] ✅ Fresh canvas project opened:', page.url());
+      bringChromeToFront();
+      await captureDebugView(page, 'Fresh Project Canvas Opened');
+    }
+
+    await page.waitForTimeout(3000);
+    const editor = page.locator('div.ProseMirror').first();
+    await editor.waitFor({ state: 'visible', timeout: 25000 });
+    await configureSingleOutputMode(page);
+    return editor;
+  } catch (err) {
+    console.warn('[Playwright Engine] Warning creating new project:', err.message);
+    const editor = page.locator('div.ProseMirror').first();
+    return editor;
+  }
+}
+
+async function clearFlowSiteData(page) {
+  try {
+    console.log('[Playwright Engine] 🧹 Clearing Google Flow site data & caches via CDP...');
+    const client = await page.context().newCDPSession(page);
+    await client.send('Storage.clearDataForOrigin', {
+      origin: 'https://flow.google.com',
+      storageTypes: 'indexeddb,cache_storage,service_workers,local_storage'
+    });
+    console.log('[Playwright Engine] ✅ Google Flow site data cleared successfully.');
+    return true;
+  } catch (err) {
+    console.warn('[Playwright Engine] CDP clearDataForOrigin warning:', err.message);
+    return false;
+  }
+}
+
+async function resetFlowSiteDataAndSession() {
+  const context = await ensureBrowserOpen();
+  const pages = context.pages();
+  const page = pages.length > 0 ? pages[0] : await context.newPage();
+  await clearFlowSiteData(page);
+  await createNewProject(page);
+  return { success: true, url: page.url() };
+}
+
+async function checkUnusualActivity(page) {
+  try {
+    return await page.evaluate(() => {
+      const fullText = document.body ? (document.body.innerText || '') : '';
+      const hasErrorPhrase = /unusual activity/i.test(fullText) ||
+                             /suspicious activity/i.test(fullText) ||
+                             /too many requests/i.test(fullText);
+      if (!hasErrorPhrase) return false;
+
+      const modals = document.querySelectorAll('[role="dialog"], [role="alert"], .error, .banner, .modal, .toast');
+      for (let m of modals) {
+        if (/unusual activity/i.test(m.innerText || '')) return true;
+      }
+
+      const cards = document.querySelectorAll('div, section');
+      for (let c of cards) {
+        if (c.innerText && /unusual activity/i.test(c.innerText)) {
+          return true;
+        }
+      }
+      return true;
+    });
+  } catch (e) {
+    return false;
+  }
+}
+
 async function ensureBrowserOpen() {
   if (isContextUsable(activeBrowserContext)) {
     bringChromeToFront();
@@ -473,7 +562,7 @@ function getFlowLaunchUrl() {
     }
 
     await page.waitForTimeout(3000);
-    const editor = page.locator('div.ProseMirror').first();
+    let editor = page.locator('div.ProseMirror').first();
     await editor.waitFor({ state: 'visible', timeout: 20000 });
 
     // Ensure output count is set to 1x image (instead of default 2x / 4x)
@@ -482,12 +571,13 @@ function getFlowLaunchUrl() {
 
     const total = prompts.length;
     let completedCount = 0;
+    let currentSceneRetries = 0;
 
     for (let i = 0; i < total; i++) {
       const prompt = prompts[i];
       const sceneIndex = i + 1;
 
-      console.log(`[Playwright Engine] Processing Scene ${sceneIndex}/${total}: "${prompt}"`);
+      console.log(`[Playwright Engine] Processing Scene ${sceneIndex}/${total}: "${prompt}" (Retry: ${currentSceneRetries})`);
       bringChromeToFront();
 
       if (onProgress) {
@@ -556,31 +646,24 @@ function getFlowLaunchUrl() {
       }
       await captureDebugView(page, `Scene ${sceneIndex}/${total}: Generation Triggered`);
 
-      // Check for temporary rate limit / unusual activity banner
-      await page.waitForTimeout(1500);
-      const unusualModal = page.locator('text="We noticed some unusual activity"').first();
-      if (await unusualModal.isVisible().catch(() => false)) {
-        console.warn(`[Playwright Engine] Temporary rate-limit banner detected on Scene ${sceneIndex}. Pausing 20s for cooldown...`);
-        const dismissBtn = page.locator('button:has-text("OK"), button:has-text("Dismiss"), button:has-text("Close"), button[aria-label="Close"]').first();
-        if (await dismissBtn.isVisible().catch(() => false)) {
-          await dismissBtn.click().catch(() => {});
-        } else {
-          await page.keyboard.press('Escape').catch(() => {});
-        }
-        await page.waitForTimeout(20000);
-        // Retry trigger
-        await genBtn.click().catch(() => {});
-      }
-
       // Wait for image to generate (Google Flow takes ~12-25 seconds per generation)
       const genStartTime = Date.now();
       let generatedUrl = null;
+      let unusualDetected = false;
       
       // Give initial generation breathing time
-      await page.waitForTimeout(6000);
+      await page.waitForTimeout(4000);
 
       while (Date.now() - genStartTime < 75000) {
         await page.waitForTimeout(2000);
+
+        // Instant check: Did Google Flow flag unusual activity? (Never wait 75s for a failed image!)
+        const isUnusual = await checkUnusualActivity(page);
+        if (isUnusual) {
+          console.warn(`[Playwright Engine] ⚠️ Google Flow 'Unusual Activity' detected during scene ${sceneIndex} generation!`);
+          unusualDetected = true;
+          break; // Exit wait loop immediately to trigger auto-recovery!
+        }
 
         // Stream periodic live canvas screenshots during image generation
         const elapsedSec = Math.round((Date.now() - genStartTime) / 1000);
@@ -637,6 +720,66 @@ function getFlowLaunchUrl() {
         if (generatedUrl) break;
       }
 
+      // Final check: did it fail with unusual activity right at the end?
+      if (!generatedUrl && !unusualDetected) {
+        unusualDetected = await checkUnusualActivity(page);
+      }
+
+      // ───────────────────────────────────────────────────────────────────────
+      // AUTO-RECOVERY PIPELINE FOR UNUSUAL ACTIVITY
+      // ───────────────────────────────────────────────────────────────────────
+      if (unusualDetected) {
+        currentSceneRetries++;
+        console.warn(`[Playwright Engine] 🔄 Auto-Recovery initiated for Scene ${sceneIndex} (Attempt ${currentSceneRetries})...`);
+
+        // Close any modal popup
+        await page.keyboard.press('Escape').catch(() => {});
+        const dismissBtn = page.locator('button:has-text("OK"), button:has-text("Dismiss"), button:has-text("Close"), button[aria-label="Close"]').first();
+        if (await dismissBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await dismissBtn.click().catch(() => {});
+        }
+
+        if (currentSceneRetries === 1) {
+          // Hul 3: Open brand new project canvas & retry scene
+          if (onProgress) {
+            onProgress({
+              status: 'unusual_recovery',
+              sceneIndex,
+              totalScenes: total,
+              prompt,
+              message: `⚠️ 'Unusual Activity' detected. Auto-recovering: Switching to a Fresh Project Canvas (Attempt 1)...`
+            });
+          }
+          await page.waitForTimeout(6000);
+          editor = await createNewProject(page);
+          i--; // Retry this same scene!
+          continue;
+        } else if (currentSceneRetries === 2) {
+          // Hul 1/4: Clear Google Flow Site Data via CDP, create new project & retry
+          if (onProgress) {
+            onProgress({
+              status: 'clearing_cache',
+              sceneIndex,
+              totalScenes: total,
+              prompt,
+              message: `🧹 'Unusual Activity' persisted. Clearing Google Flow site data & cache...`
+            });
+          }
+          await clearFlowSiteData(page);
+          await page.waitForTimeout(5000);
+          editor = await createNewProject(page);
+          i--; // Retry this same scene!
+          continue;
+        } else {
+          console.error(`[Playwright Engine] ❌ Scene ${sceneIndex} failed after 2 auto-recovery attempts due to persistent Google Flow rate-limiting.`);
+          currentSceneRetries = 0; // Skip to next scene so batch doesn't get completely stuck
+          continue;
+        }
+      }
+
+      // Reset retry counter on successful scene generation
+      currentSceneRetries = 0;
+
       // If still not captured by diff, check one more time specifically for new tiles (never pick old tiles)
       if (!generatedUrl) {
         const latestNewCanvasImg = await page.$$eval('img', (els, baseline) => {
@@ -659,8 +802,8 @@ function getFlowLaunchUrl() {
         try {
           console.log(`[Playwright Engine] Fetching image bytes in-page for scene ${sceneIndex}...`);
           const base64 = await page.evaluate(async (url) => {
-            const res = await fetch(url);
-            const blob = await res.blob();
+            const resp = await fetch(url);
+            const blob = await resp.blob();
             return new Promise((resolve) => {
               const reader = new FileReader();
               reader.onloadend = () => resolve(reader.result);
@@ -713,11 +856,27 @@ function getFlowLaunchUrl() {
         });
       }
 
+      // ───────────────────────────────────────────────────────────────────────
+      // Hul 3: PROACTIVE CANVAS ROTATION EVERY 10 SCENES
+      // ───────────────────────────────────────────────────────────────────────
+      if (completedCount > 0 && completedCount % 10 === 0 && sceneIndex < total) {
+        console.log(`[Playwright Engine] 🔄 Proactive Canvas Rotation: 10 scenes completed on current canvas. Opening fresh project for remaining scenes...`);
+        if (onProgress) {
+          onProgress({
+            status: 'rotating_project',
+            sceneIndex,
+            totalScenes: total,
+            message: `🔄 Completed ${completedCount} scenes! Switching to a fresh project canvas to prevent Google Flow rate limits...`
+          });
+        }
+        editor = await createNewProject(page);
+        await page.waitForTimeout(3000);
+      }
+
       // Natural human cooldown pause between scenes (avoids Google Flow rapid-burst blocks)
       if (sceneIndex < total) {
-        const pauseMs = 7000 + Math.floor(Math.random() * 3000);
+        const pauseMs = 12000 + Math.floor(Math.random() * 6000);
         console.log(`[Playwright Engine] Natural human pause (${(pauseMs / 1000).toFixed(1)}s) before scene ${sceneIndex + 1}...`);
-        await page.waitForTimeout(pauseMs);
       }
     }
 
@@ -760,5 +919,7 @@ module.exports = {
   forceCaptureScreenshot,
   getLiveFrameBuffer,
   bringChromeToFront,
-  ensureBrowserOpen
+  ensureBrowserOpen,
+  resetFlowSiteDataAndSession,
+  createNewProject
 };

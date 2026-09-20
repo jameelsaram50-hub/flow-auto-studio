@@ -4,7 +4,7 @@ const os = require('os');
 const { exec, spawn } = require('child_process');
 const express = require('express');
 const cors = require('cors');
-const { runPlaywrightBatch, stopJob, getDebugState, forceCaptureScreenshot, getLiveFrameBuffer, bringChromeToFront, ensureBrowserOpen } = require('./playwright_worker.js');
+const { runPlaywrightBatch, stopJob, getDebugState, forceCaptureScreenshot, getLiveFrameBuffer, bringChromeToFront, ensureBrowserOpen, resetFlowSiteDataAndSession } = require('./playwright_worker.js');
 
 const app = express();
 const PORT = 3001;
@@ -549,6 +549,19 @@ app.post('/api/generate', (req, res) => {
     addLog('Studio', `Error starting project: ${err.message}`, 'error');
     console.error('[Server] /api/generate error:', err);
     return res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
+// API: 1-Click Fix for Google Flow "Unusual Activity" (Clear Site Data + Fresh Project)
+app.post('/api/fix-unusual-activity', async (req, res) => {
+  try {
+    addLog('FlowEngine', '🧹 User requested Flow Site Data & Session Reset...', 'info');
+    const result = await resetFlowSiteDataAndSession();
+    addLog('FlowEngine', '✅ Google Flow site data cleared & fresh project canvas ready!', 'success');
+    return res.json({ success: true, message: 'Google Flow site data reset & fresh project ready.' });
+  } catch (err) {
+    addLog('FlowEngine', `❌ Failed to reset Flow data: ${err.message}`, 'error');
+    return res.status(500).json({ error: err.message });
   }
 });
 
