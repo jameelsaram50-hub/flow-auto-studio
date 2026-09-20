@@ -557,9 +557,16 @@ app.post('/api/generate', (req, res) => {
         imagesCache.timestamp = 0; // Invalidate cache immediately so UI updates
       },
       onComplete: (res) => {
-        addLog('Studio', `🎉 All ${res.totalGenerated} scenes generated successfully across all workers!`, 'success');
-        activeRun.status = 'completed';
-        activeRun.progressText = 'Done!';
+        if (res && res.totalGenerated >= promptList.length) {
+          addLog('Studio', `🎉 All ${res.totalGenerated} scenes generated successfully across workers!`, 'success');
+          activeRun.status = 'completed';
+          activeRun.progressText = 'Done!';
+        } else {
+          const genCount = res?.totalGenerated || 0;
+          addLog('Studio', `⚠️ Batch ended with ${genCount}/${promptList.length} scenes generated.`, 'warn');
+          activeRun.status = genCount >= promptList.length ? 'completed' : 'generating';
+          activeRun.progressText = `${genCount}/${promptList.length} scenes finished`;
+        }
         imagesCache.timestamp = 0;
       },
       onError: (err) => {

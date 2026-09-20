@@ -285,7 +285,8 @@ function updateStepper(state, activeRun, currentRunCount) {
   }
 
   // Step 4: Batch Generating / Complete
-  const isDone = activeRun.status === 'completed' || (total > 0 && currentCount >= total);
+  const isDone = (total > 0 && currentCount >= total);
+  const isPartial = (activeRun.status === 'completed' && currentCount < total);
 
   if (isDone) {
     step4?.classList.add('done');
@@ -306,6 +307,21 @@ function updateStepper(state, activeRun, currentRunCount) {
     if (window.electronAPI?.showNotification && !hasNotifiedCompletion) {
       hasNotifiedCompletion = true;
       window.electronAPI.showNotification('🎉 Batch Images Complete', `All ${total} images generated in Google Flow!`);
+    }
+  } else if (isPartial) {
+    step4?.classList.add('active');
+    if (step4Desc) step4Desc.textContent = `Partial (${currentCount}/${total} generated)`;
+    if (runStatusPill) {
+      runStatusPill.textContent = 'Partial Run';
+      runStatusPill.style.background = 'rgba(245, 158, 11, 0.2)';
+      runStatusPill.style.borderColor = 'rgba(245, 158, 11, 0.5)';
+      runStatusPill.style.color = '#fbbf24';
+    }
+    if (statusAlertText) {
+      statusAlertText.innerHTML = `⚠️ <b>${currentCount} of ${total} images ready.</b> (${total - currentCount} scenes unfinished. Ensure your extra Chrome profiles are signed in).`;
+    }
+    if (btnAlertDismiss) {
+      btnAlertDismiss.style.display = 'inline-block';
     }
   } else if (currentCount > 0) {
     step4?.classList.add('active');

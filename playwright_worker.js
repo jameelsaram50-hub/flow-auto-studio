@@ -534,6 +534,26 @@ async function runSingleWorker({
     await page.goto(flowUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForTimeout(2500);
 
+    // 1. Check if user is redirected to Google login
+    const curUrl = page.url();
+    const isLoginPage = curUrl.includes('accounts.google.com') ||
+                        curUrl.includes('/signin') ||
+                        curUrl.includes('/ServiceLogin');
+
+    if (isLoginPage) {
+      console.warn(`[Worker #${workerId}] ⚠️ Not logged in to Google! (URL: ${curUrl})`);
+      if (onProgress) {
+        onProgress({
+          workerId,
+          status: 'not_logged_in',
+          message: `⚠️ Chrome #${workerId} is not signed into Google. Scenes reassigned to active worker.`
+        });
+      }
+      try { await workerObj.context.close(); } catch (e) {}
+      activeWorkerPool.delete(workerId);
+      return { workerId, notLoggedIn: true, unhandledItems: items, completedCount: 0 };
+    }
+
     const newBtn = page.locator('button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
     if (await newBtn.isVisible({ timeout: 10000 }).catch(() => false)) {
       await newBtn.click();
@@ -543,7 +563,20 @@ async function runSingleWorker({
 
   await page.waitForTimeout(2500);
   let editor = page.locator('div.ProseMirror').first();
-  await editor.waitFor({ state: 'visible', timeout: 25000 });
+  const editorFound = await editor.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
+  if (!editorFound) {
+    console.warn(`[Worker #${workerId}] ⚠️ Google Flow canvas editor not accessible (login needed or canvas blocked)`);
+    if (onProgress) {
+      onProgress({
+        workerId,
+        status: 'editor_missing',
+        message: `⚠️ Chrome #${workerId}: Canvas not accessible. Reassigning scenes...`
+      });
+    }
+    try { await workerObj.context.close(); } catch (e) {}
+    activeWorkerPool.delete(workerId);
+    return { workerId, notLoggedIn: true, unhandledItems: items, completedCount: 0 };
+  }
   await configureSingleOutputMode(page);
 
   let workerCompleted = 0;
@@ -687,7 +720,8 @@ async function runSingleWorker({
 
     // Save image to Downloads/turboflow
     const safeProjectName = projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${safeProjectName}_w${workerId}_scene_${globalSceneIndex}_${Date.now().toString().slice(-4)}.png`;
+    const padIdx = String(globalSceneIndex).padStart(3, '0');
+    const filename = `${safeProjectName}_scene_${padIdx}.png`;
     const savePath = path.join(outDir, filename);
 
     let savedOk = false;
@@ -765,7 +799,7 @@ async function runSingleWorker({
 async function runPlaywrightBatch({
   projectId,
   prompts,
-  workerCount = 7,
+  workerCount,
   onProgress,
   onImageGenerated,
   onComplete,
@@ -778,32 +812,93 @@ async function runPlaywrightBatch({
 
   isJobRunning = true;
   const totalPrompts = prompts.length;
-  const numWorkers = Math.min(Math.max(Number(workerCount) || 7, 1), 7, totalPrompts);
 
-  console.log(`[Playwright Orchestrator] 🚀 Launching ${numWorkers} parallel Chrome worker(s) for ${totalPrompts} prompts...`);
+  // USER RULE:
+  // - If prompts < 70: divide across at most 3 Chromes
+  // - If prompts >= 70: divide across all 7 Chromes
+  let maxWorkersAllowed = totalPrompts < 70 ? 3 : 7;
+  let numWorkers = Math.min(maxWorkersAllowed, totalPrompts);
+  if (workerCount && Number(workerCount) > 0) {
+    numWorkers = Math.min(Number(workerCount), maxWorkersAllowed, totalPrompts);
+  }
 
-  // Distribute prompts across workers
+  console.log(`[Playwright Orchestrator] 🚀 Planning ${numWorkers} parallel Chrome worker(s) for ${totalPrompts} prompts (<70 -> 3 workers, >=70 -> 7 workers)...`);
+
+  // Sequential Contiguous Chunking (NOT modulo):
+  // e.g. 5 prompts, 3 workers -> [1..2], [3..4], [5]
+  // e.g. 60 prompts, 3 workers -> [1..20], [21..40], [41..60]
+  // e.g. 70 prompts, 7 workers -> [1..10], [11..20], [21..30], [31..40], [41..50], [51..60], [61..70]
   const workerBuckets = [];
-  for (let w = 0; w < numWorkers; w++) workerBuckets.push([]);
-  for (let i = 0; i < totalPrompts; i++) {
-    workerBuckets[i % numWorkers].push({ prompt: prompts[i], globalIndex: i + 1 });
+  const baseSize = Math.floor(totalPrompts / numWorkers);
+  const remainder = totalPrompts % numWorkers;
+
+  let currentStart = 0;
+  for (let w = 0; w < numWorkers; w++) {
+    const chunkSize = baseSize + (w < remainder ? 1 : 0);
+    const bucket = [];
+    for (let i = 0; i < chunkSize; i++) {
+      const globalIdx = currentStart + i + 1;
+      bucket.push({
+        prompt: prompts[currentStart + i],
+        globalIndex: globalIdx
+      });
+    }
+    workerBuckets.push(bucket);
+    currentStart += chunkSize;
+  }
+
+  // Check which profiles currently have saved logins
+  const profileStatuses = getProfilesStatus();
+  console.log('[Playwright Orchestrator] Profile check:', profileStatuses.map(p => `W#${p.workerId}: ${p.hasCookies ? 'Login OK' : 'No Login'}`).join(', '));
+
+  const activeWorkerConfigs = [];
+  const unloggedItems = [];
+
+  for (let w = 0; w < numWorkers; w++) {
+    const workerId = w + 1;
+    const bucket = workerBuckets[w];
+    if (!bucket || bucket.length === 0) continue;
+
+    const prof = profileStatuses.find(p => p.workerId === workerId);
+    const hasSavedLogin = workerId === 1 || (prof && prof.hasCookies);
+
+    if (!hasSavedLogin) {
+      console.log(`[Playwright Orchestrator] ℹ️ Worker #${workerId} has no saved Google login. Its ${bucket.length} scene(s) will be executed by Worker #1.`);
+      if (onProgress) {
+        onProgress({
+          workerId,
+          status: 'idle',
+          message: `ℹ️ Chrome #${workerId} has no Google account saved yet. Its ${bucket.length} scene(s) will run on Worker #1.`
+        });
+      }
+      unloggedItems.push(...bucket);
+    } else {
+      activeWorkerConfigs.push({ workerId, bucket });
+    }
+  }
+
+  // If unlogged items exist, give them to Worker 1
+  const w1Config = activeWorkerConfigs.find(c => c.workerId === 1);
+  if (w1Config) {
+    w1Config.bucket.push(...unloggedItems);
+  } else if (unloggedItems.length > 0) {
+    activeWorkerConfigs.unshift({ workerId: 1, bucket: unloggedItems });
   }
 
   let completedGlobal = 0;
   const promises = [];
 
-  for (let w = 0; w < numWorkers; w++) {
-    const workerId = w + 1;
-    const bucket = workerBuckets[w];
-    if (bucket.length === 0) continue;
+  for (let idx = 0; idx < activeWorkerConfigs.length; idx++) {
+    const { workerId, bucket } = activeWorkerConfigs[idx];
+    const staggerMs = idx * 3500; // 3.5s stagger between worker launches
 
-    const staggerMs = w * 3500; // 3.5s stagger between worker launches
     const promise = (async () => {
       if (staggerMs > 0) {
         console.log(`[Playwright Orchestrator] Staggering Worker #${workerId} by ${staggerMs / 1000}s...`);
         await new Promise(r => setTimeout(r, staggerMs));
       }
-      return runSingleWorker({
+
+      const result = await runSingleWorker({
         workerId,
         projectId,
         items: bucket,
@@ -815,14 +910,41 @@ async function runPlaywrightBatch({
         },
         targetUrl
       });
+
+      // If during execution this worker couldn't log in, re-route its scenes to Worker 1
+      if (result && result.notLoggedIn && result.unhandledItems && result.unhandledItems.length > 0 && workerId !== 1) {
+        console.warn(`[Playwright Orchestrator] 🔄 Re-routing ${result.unhandledItems.length} scenes from Worker #${workerId} to Worker #1...`);
+        await runSingleWorker({
+          workerId: 1,
+          projectId,
+          items: result.unhandledItems,
+          totalGlobal: totalPrompts,
+          onProgress,
+          onImageGenerated: (img) => {
+            completedGlobal++;
+            if (onImageGenerated) onImageGenerated(img);
+          },
+          targetUrl
+        });
+      }
+
+      return result;
     })();
+
     promises.push(promise);
   }
 
   try {
     await Promise.allSettled(promises);
     console.log(`[Playwright Orchestrator] 🎉 Batch completed! Total: ${completedGlobal}/${totalPrompts} generated.`);
-    if (onComplete) onComplete({ projectId, totalGenerated: completedGlobal });
+    if (onComplete) {
+      onComplete({
+        projectId,
+        totalGenerated: completedGlobal,
+        totalNeeded: totalPrompts,
+        isComplete: completedGlobal >= totalPrompts
+      });
+    }
   } catch (err) {
     console.error('[Playwright Orchestrator] Batch error:', err);
     if (onError) onError(err);
