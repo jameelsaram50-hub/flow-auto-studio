@@ -36,18 +36,24 @@ function getProfileDir(workerId = 1) {
 const { spawnSync, spawn, exec } = require('child_process');
 
 function cleanupProfileLocks(profileDir) {
-  if (process.platform === 'win32' && profileDir) {
+  if (!profileDir) return;
+  const baseDirName = path.basename(profileDir);
+
+  if (process.platform === 'win32') {
     try {
-      const baseDirName = path.basename(profileDir);
-      const psCommand = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | Select-Object -ExpandProperty ProcessId`;
-      const res = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCommand], { encoding: 'utf8' });
+      const psCommand = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | Select-Object -ExpandProperty ProcessId`;
+      const res = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: 5000 });
       const pids = (res.stdout || '').trim().split(/\s+/).filter(Boolean);
       if (pids.length > 0) {
         console.log(`[Playwright Engine] Freeing profile lock for ${baseDirName} (PIDs: ${pids.join(', ')})...`);
-        spawnSync('taskkill.exe', ['/F', ...pids.flatMap(p => ['/PID', p])], { stdio: 'ignore' });
+        for (const pid of pids) {
+          try {
+            spawnSync('taskkill.exe', ['/F', '/T', '/PID', pid], { stdio: 'ignore' });
+          } catch (e) {}
+        }
         try {
           const sleepBuf = new Int32Array(new SharedArrayBuffer(4));
-          Atomics.wait(sleepBuf, 0, 0, 400);
+          Atomics.wait(sleepBuf, 0, 0, 500);
         } catch (e) {}
       }
     } catch (e) {
@@ -69,16 +75,31 @@ function cleanupProfileLocks(profileDir) {
 function openWorkerForLogin(workerId = 1) {
   const chromeExe = findChromePath();
   const profileDir = getProfileDir(workerId);
+  const baseDirName = path.basename(profileDir);
   const flowUrl = 'https://flow.google.com/';
 
   console.log(`[Playwright Engine] Opening Chrome for Worker #${workerId} Google login...`);
   console.log(`[Playwright Engine] Profile directory: ${profileDir}`);
 
-  // 1. Free profile locks and kill any stale zombies for this profile
+  // 1. If Chrome for this worker is ALREADY open and running, don't kill it! Just bring it to front.
+  if (process.platform === 'win32') {
+    try {
+      const psCheck = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | Select-Object -ExpandProperty ProcessId`;
+      const checkRes = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCheck], { encoding: 'utf8', timeout: 3000 });
+      const activePids = (checkRes.stdout || '').trim().split(/\s+/).filter(Boolean);
+      if (activePids.length > 0) {
+        console.log(`[Playwright Engine] Worker #${workerId} Chrome is already open (PIDs: ${activePids.join(', ')}). Bringing to front...`);
+        bringChromeToFront();
+        return { success: true, workerId, profileDir, alreadyOpen: true };
+      }
+    } catch (e) {}
+  }
+
+  // 2. Free profile locks and kill any stale zombies for this profile
   cleanupProfileLocks(profileDir);
 
-  // 2. Launch using Windows Shell "start" command for guaranteed interactive GUI
-  const cmd = `start "" "${chromeExe}" --user-data-dir="${profileDir}" --new-window --start-maximized "${flowUrl}"`;
+  // 3. Launch using Windows Shell "start" command for guaranteed interactive GUI
+  const cmd = `start "" "${chromeExe}" --user-data-dir="${profileDir}" --profile-directory=Default --new-window --start-maximized --no-first-run --no-default-browser-check "${flowUrl}"`;
   exec(cmd, { shell: 'cmd.exe' }, (err) => {
     if (err) {
       console.warn(`[Playwright Engine] start command fallback to spawn: ${err.message}`);
@@ -98,7 +119,7 @@ function openWorkerForLogin(workerId = 1) {
     }
   });
 
-  // 3. Bring Chrome to front on Windows
+  // 4. Bring Chrome to front on Windows
   setTimeout(() => {
     bringChromeToFront();
   }, 1000);
