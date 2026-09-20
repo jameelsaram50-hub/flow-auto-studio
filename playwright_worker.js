@@ -33,6 +33,36 @@ function getProfileDir(workerId = 1) {
   return dir;
 }
 
+const { execSync, spawn } = require('child_process');
+
+function cleanupProfileLocks(profileDir) {
+  if (process.platform === 'win32' && profileDir) {
+    try {
+      const baseDirName = path.basename(profileDir);
+      const out = execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"name = 'chrome.exe'\\" | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | ForEach-Object { $_.ProcessId }"`, { encoding: 'utf8' });
+      const pids = out.trim().split(/\s+/).filter(Boolean);
+      if (pids.length > 0) {
+        console.log(`[Playwright Engine] Freeing profile lock for ${baseDirName} (PIDs: ${pids.join(', ')})...`);
+        execSync(`taskkill /F ${pids.map(p => `/PID ${p}`).join(' ')}`, { stdio: 'ignore' });
+        try {
+          const sleepBuf = new Int32Array(new SharedArrayBuffer(4));
+          Atomics.wait(sleepBuf, 0, 0, 300);
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
+  try {
+    const lockFiles = ['SingletonLock', 'lockfile', 'SingletonSocket', 'SingletonCookie'];
+    for (const f of lockFiles) {
+      const p = path.join(profileDir, f);
+      if (fs.existsSync(p)) {
+        try { fs.unlinkSync(p); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+}
+
 function openWorkerForLogin(workerId = 1) {
   const chromeExe = findChromePath();
   const profileDir = getProfileDir(workerId);
@@ -40,6 +70,9 @@ function openWorkerForLogin(workerId = 1) {
 
   console.log(`[Playwright Engine] Opening Chrome for Worker #${workerId} Google login...`);
   console.log(`[Playwright Engine] Profile directory: ${profileDir}`);
+
+  // Free profile lock before opening so Chrome doesn't abort with ProcessSingleton error
+  cleanupProfileLocks(profileDir);
 
   const child = spawn(chromeExe, [
     `--user-data-dir=${profileDir}`,
@@ -109,32 +142,6 @@ function downloadFile(url, destPath) {
       reject(err);
     });
   });
-}
-
-const { execSync, spawn } = require('child_process');
-
-function cleanupProfileLocks(profileDir) {
-  if (process.platform === 'win32' && profileDir) {
-    try {
-      const baseDirName = path.basename(profileDir);
-      const out = execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"name = 'chrome.exe'\\" | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | ForEach-Object { $_.ProcessId }"`, { encoding: 'utf8' });
-      const pids = out.trim().split(/\s+/).filter(Boolean);
-      if (pids.length > 0) {
-        console.log(`[Playwright Engine] Freeing profile lock for ${baseDirName} (PIDs: ${pids.join(', ')})...`);
-        execSync(`taskkill /F ${pids.map(p => `/PID ${p}`).join(' ')}`, { stdio: 'ignore' });
-      }
-    } catch (e) {}
-  }
-
-  try {
-    const lockFiles = ['SingletonLock', 'lockfile', 'SingletonSocket', 'SingletonCookie'];
-    for (const f of lockFiles) {
-      const p = path.join(profileDir, f);
-      if (fs.existsSync(p)) {
-        try { fs.unlinkSync(p); } catch (e) {}
-      }
-    }
-  } catch (e) {}
 }
 
 function isContextUsable(ctx) {
