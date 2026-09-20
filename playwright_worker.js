@@ -595,24 +595,30 @@ function getFlowLaunchUrl() {
         await configureSingleOutputMode(page);
       }
 
-      // Focus and clear ProseMirror
+      // Instant 1-shot paste into ProseMirror (Fast, clean & no repetitive keydown triggers)
       await editor.click();
       await page.waitForTimeout(150);
       await page.keyboard.press('Control+A');
       await page.waitForTimeout(100);
-      await page.keyboard.press('Backspace');
+
+      // Instant 1-shot text insertion (acts like instant clipboard paste)
+      await page.keyboard.insertText(prompt);
       await page.waitForTimeout(250);
 
-      // Humanized prompt typing with natural variance
-      for (let charIdx = 0; charIdx < prompt.length; charIdx++) {
-        const ch = prompt[charIdx];
-        await page.keyboard.type(ch, { delay: Math.floor(Math.random() * 20) + 12 });
-        if (ch === ' ' && Math.random() < 0.25) {
-          await page.waitForTimeout(80 + Math.floor(Math.random() * 120));
+      // Verify ProseMirror has the prompt; fallback to in-DOM insertText if needed
+      await page.evaluate((txt) => {
+        const el = document.querySelector('div.ProseMirror');
+        if (!el) return;
+        const cur = (el.innerText || el.textContent || '').trim();
+        if (!cur || cur.length < 5) {
+          el.focus();
+          document.execCommand('selectAll', false, null);
+          document.execCommand('insertText', false, txt);
         }
-      }
-      await page.waitForTimeout(600 + Math.floor(Math.random() * 300));
-      await captureDebugView(page, `Scene ${sceneIndex}/${total}: Prompt Typed`);
+      }, prompt);
+
+      await page.waitForTimeout(400);
+      await captureDebugView(page, `Scene ${sceneIndex}/${total}: Prompt Pasted`);
 
       // Capture baseline images on canvas and network stream count before clicking generate
       const baselineImages = await page.$$eval('img', els => els
