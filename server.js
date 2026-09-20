@@ -552,6 +552,35 @@ app.post('/api/generate', (req, res) => {
   }
 });
 
+// API: Full Studio Reset (Restores initial state like first launch, preserves Chrome login)
+app.post('/api/reset-app', async (req, res) => {
+  try {
+    console.log('[Server] 🔄 Full Studio Reset requested...');
+    // 1. Stop any active running batch generation
+    stopJob();
+
+    // 2. Reset active run and logs in memory
+    activeRun = freshRun();
+    recentLogs.length = 0;
+    imagesCache.timestamp = 0;
+
+    addLog('Studio', '🔄 Studio reset to initial clean state (Chrome login preserved).', 'success');
+
+    // 3. Reset Google Flow cache & canvas in Chrome (non-blocking)
+    resetFlowSiteDataAndSession().catch((err) => {
+      console.log('[Server] Flow session reset note:', err.message);
+    });
+
+    return res.json({
+      success: true,
+      message: 'Flow Auto Studio reset successfully to clean initial state. Chrome login preserved.',
+    });
+  } catch (err) {
+    console.error('[Server] /api/reset-app error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // API: 1-Click Fix for Google Flow "Unusual Activity" (Clear Site Data + Fresh Project)
 app.post('/api/fix-unusual-activity', async (req, res) => {
   try {

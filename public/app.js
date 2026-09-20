@@ -617,34 +617,68 @@ btnRelaunch?.addEventListener('click', async () => {
   }
 });
 
-// 🧹 Fix Unusual Activity button
-const btnFixUnusual = document.getElementById('btn-fix-unusual');
-btnFixUnusual?.addEventListener('click', async () => {
-  const originalHTML = btnFixUnusual.innerHTML;
-  btnFixUnusual.disabled = true;
-  btnFixUnusual.innerHTML = '<span>⏳</span><span>Clearing Flow Data...</span>';
+// 🔄 Reset Studio to Initial Clean State (Preserves Chrome Google Login)
+const btnResetStudio = document.getElementById('btn-reset-studio');
+btnResetStudio?.addEventListener('click', async () => {
+  const confirmed = confirm('Are you sure you want to reset Flow Auto Studio to its clean initial state?\n\n- Clears prompts & queue\n- Resets project & error states\n- Resets Google Flow canvas cache\n- Preserves your Google Chrome login session');
+  if (!confirmed) return;
+
+  const originalHTML = btnResetStudio.innerHTML;
+  btnResetStudio.disabled = true;
+  btnResetStudio.innerHTML = '<span>⏳</span><span>Resetting App...</span>';
+
   try {
-    const res = await fetch('/api/fix-unusual-activity', { method: 'POST' });
+    const res = await fetch('/api/reset-app', { method: 'POST' });
     const data = await res.json();
+
     if (data.success) {
-      btnFixUnusual.innerHTML = '<span>✅</span><span>Cache Reset!</span>';
-      btnFixUnusual.style.borderColor = 'rgba(34,197,94,0.5)';
-      btnFixUnusual.style.color = '#4ade80';
-      showToast('🧹 Flow Cache Reset Complete!',
-        'Google Flow site data has been cleared and a fresh canvas opened. "Unusual Activity" errors are now resolved.', 8000);
+      // 1. Clear prompt input & counters
+      if (promptInput) promptInput.value = '';
+      updateCounters();
+
+      // 2. Reset project name to fresh default
+      if (projectNameInput) {
+        projectNameInput.value = 'Project_' + Date.now().toString().slice(-6);
+      }
+
+      // 3. Reset speed and quality to default
+      setSpeedMode('fast');
+      setImageQuality('standard');
+
+      // 4. Hide progress section & alerts
+      if (progressSection) progressSection.style.display = 'none';
+      if (btnToggleMonitor) btnToggleMonitor.style.display = 'inline-flex';
+      if (statusAlertText) statusAlertText.innerHTML = '';
+
+      // 5. Clear logs UI
+      if (logEntries) {
+        logEntries.innerHTML = '<div class="log-entry system"><span class="log-time">[Ready]</span> <span class="log-msg">App reset to initial launch conditions. Chrome login preserved.</span></div>';
+      }
+
+      // 6. Reset monitor error and states
+      isMonitorDismissedByUser = false;
+      hasNotifiedCompletion = false;
+
+      btnResetStudio.innerHTML = '<span>✅</span><span>Reset Done!</span>';
+      btnResetStudio.style.borderColor = 'rgba(34,197,94,0.5)';
+      btnResetStudio.style.color = '#4ade80';
+
+      showToast('🔄 Studio Reset Complete!',
+        'Flow Auto Studio has been restored to fresh initial state. Your Google Chrome login is safely preserved.', 7000);
+
       fetchStatus();
     } else {
-      throw new Error(data.error || 'Failed to reset site data');
+      throw new Error(data.error || 'Failed to reset');
     }
-  } catch (e) {
-    alert('Could not reset Google Flow data: ' + e.message);
+  } catch (err) {
+    alert('Error resetting app: ' + err.message);
   } finally {
     setTimeout(() => {
-      btnFixUnusual.disabled = false;
-      btnFixUnusual.innerHTML = originalHTML;
-      btnFixUnusual.style.borderColor = '';
-      btnFixUnusual.style.color = '';
-    }, 4000);
+      btnResetStudio.disabled = false;
+      btnResetStudio.innerHTML = originalHTML;
+      btnResetStudio.style.borderColor = '';
+      btnResetStudio.style.color = '';
+    }, 3000);
   }
 });
 
