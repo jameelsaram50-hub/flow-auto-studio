@@ -4,7 +4,18 @@ const os = require('os');
 const { exec, spawn } = require('child_process');
 const express = require('express');
 const cors = require('cors');
-const { runPlaywrightBatch, stopJob, getDebugState, forceCaptureScreenshot, getLiveFrameBuffer, bringChromeToFront, ensureBrowserOpen, resetFlowSiteDataAndSession } = require('./playwright_worker.js');
+const {
+  runPlaywrightBatch,
+  stopJob,
+  getDebugState,
+  forceCaptureScreenshot,
+  getLiveFrameBuffer,
+  bringChromeToFront,
+  ensureBrowserOpen,
+  resetFlowSiteDataAndSession,
+  openWorkerForLogin,
+  getProfilesStatus
+} = require('./playwright_worker.js');
 
 const app = express();
 const PORT = 3001;
@@ -88,6 +99,7 @@ function freshRun() {
     count: 0,
     speedMode: 'fast',
     imageQuality: 'standard',
+    workerCount: 7,
     startTime: 0,
     status: 'idle',
     chromeLaunched: false,
@@ -95,6 +107,7 @@ function freshRun() {
     error: null,
     progressText: '',
     sceneScreenshots: {},
+    workerStatus: {},
   };
 }
 let activeRun = freshRun();
@@ -454,6 +467,7 @@ app.post('/api/generate', (req, res) => {
 
     const speedMode = req.body.speedMode || 'fast';
     const imageQuality = req.body.imageQuality || 'standard';
+    const workerCount = Math.min(Math.max(parseInt(req.body.workerCount, 10) || 7, 1), 7);
     const runId = `run_${Date.now()}`;
     const plainText = promptList.join('\n');
 
@@ -466,6 +480,8 @@ app.post('/api/generate', (req, res) => {
     activeRun.count = promptList.length;
     activeRun.speedMode = speedMode;
     activeRun.imageQuality = imageQuality;
+    activeRun.workerCount = workerCount;
+    activeRun.workerStatus = {};
     activeRun.startTime = Date.now();
     activeRun.status = 'launched';
     activeRun.chromeLaunched = true;
@@ -483,6 +499,7 @@ app.post('/api/generate', (req, res) => {
       runId,
       status: 'generating',
       totalScenes: promptList.length,
+      workerCount,
       speedMode,
       imageQuality,
       createdAt: new Date().toISOString(),
@@ -495,34 +512,52 @@ app.post('/api/generate', (req, res) => {
     };
     saveProject(projectName, projectRecord);
 
-    addLog('Studio', `🚀 Project "${projectName}" started — ${promptList.length} prompts | Speed: ${speedMode} | Quality: ${imageQuality}`, 'success');
-    console.log(`[Server] Project "${projectName}" started with ${promptList.length} prompts [Speed: ${speedMode}, Quality: ${imageQuality}].`);
+    addLog('Studio', `🚀 Project "${projectName}" started — ${promptList.length} prompts | ${workerCount} Chrome Workers | Speed: ${speedMode} | Quality: ${imageQuality}`, 'success');
+    console.log(`[Server] Project "${projectName}" started with ${promptList.length} prompts across ${workerCount} Chrome workers [Speed: ${speedMode}, Quality: ${imageQuality}].`);
 
     activeRun.status = 'generating';
-    activeRun.progressText = 'Starting Google Flow...';
+    activeRun.progressText = 'Starting Google Flow Chrome workers...';
 
-    // Start batch generation via Google Flow direct automation engine
+    // Start batch generation via Google Flow direct multi-worker engine
     runPlaywrightBatch({
       projectId: projectName,
       prompts: promptList,
+      workerCount,
       onProgress: (p) => {
         if (p.screenshotUrl && p.sceneIndex) {
           activeRun.sceneScreenshots[p.sceneIndex] = p.screenshotUrl;
         }
+        if (p.workerId) {
+          activeRun.workerStatus = activeRun.workerStatus || {};
+          activeRun.workerStatus[p.workerId] = {
+            workerId: p.workerId,
+            sceneIndex: p.sceneIndex,
+            localIndex: p.localIndex,
+            workerScenes: p.workerScenes,
+            totalScenes: p.totalScenes,
+            status: p.status,
+            prompt: p.prompt,
+            message: p.message,
+            updatedAt: new Date().toLocaleTimeString()
+          };
+        }
         if (p.message) addLog('FlowEngine', p.message, 'info', p.screenshotUrl || null);
         if (p.sceneIndex) {
-          activeRun.progressText = `Scene ${p.sceneIndex}/${p.totalScenes}`;
+          activeRun.progressText = `Scene ${p.sceneIndex}/${p.totalScenes} [W#${p.workerId || 1}]`;
         }
       },
       onImageGenerated: (img) => {
         if (img.chromeScreenshotUrl && img.sceneIndex) {
           activeRun.sceneScreenshots[img.sceneIndex] = img.chromeScreenshotUrl;
         }
-        addLog('FlowEngine', `✅ Generated Scene ${img.sceneIndex}: ${img.filename}`, 'success', img.chromeScreenshotUrl || null);
+        if (img.workerId && activeRun.workerStatus?.[img.workerId]) {
+          activeRun.workerStatus[img.workerId].lastImage = img.filename;
+        }
+        addLog('FlowEngine', `✅ Generated Scene ${img.sceneIndex} [Worker #${img.workerId || 1}]: ${img.filename}`, 'success', img.chromeScreenshotUrl || null);
         imagesCache.timestamp = 0; // Invalidate cache immediately so UI updates
       },
       onComplete: (res) => {
-        addLog('Studio', `🎉 All ${res.totalGenerated} scenes generated successfully!`, 'success');
+        addLog('Studio', `🎉 All ${res.totalGenerated} scenes generated successfully across all workers!`, 'success');
         activeRun.status = 'completed';
         activeRun.progressText = 'Done!';
         imagesCache.timestamp = 0;
@@ -538,10 +573,11 @@ app.post('/api/generate', (req, res) => {
 
     return res.json({
       success: true,
-      message: `Project "${projectName}" started with ${promptList.length} prompts. Clean Chrome + TurboFlow active...`,
+      message: `Project "${projectName}" started with ${promptList.length} prompts across ${workerCount} Chrome workers...`,
       runId,
       projectId: projectName,
       count: promptList.length,
+      workerCount,
       speedMode,
       imageQuality,
     });
@@ -549,6 +585,30 @@ app.post('/api/generate', (req, res) => {
     addLog('Studio', `Error starting project: ${err.message}`, 'error');
     console.error('[Server] /api/generate error:', err);
     return res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
+// API: Get status of all 7 Chrome worker profiles
+app.get('/api/profiles/status', (req, res) => {
+  try {
+    const profiles = typeof getProfilesStatus === 'function' ? getProfilesStatus() : [];
+    return res.json({ success: true, profiles });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// API: Open specific Chrome worker for Google Account login
+app.post('/api/profiles/open', async (req, res) => {
+  try {
+    const workerId = Math.min(Math.max(parseInt(req.body.workerId, 10) || 1, 1), 7);
+    addLog('Launcher', `Opening Chrome Worker #${workerId} for Google Account login...`, 'info');
+    const result = await openWorkerForLogin(workerId);
+    addLog('Launcher', `✅ Chrome Worker #${workerId} is open. Sign in to your Google Account!`, 'success');
+    return res.json(result);
+  } catch (err) {
+    addLog('Launcher', `❌ Error launching Chrome Worker #${req.body.workerId}: ${err.message}`, 'error');
+    return res.status(500).json({ error: err.message });
   }
 });
 

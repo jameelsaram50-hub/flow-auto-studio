@@ -116,6 +116,22 @@ function setQualityMode(quality) {
 qualityOptStd?.addEventListener('click', () => setQualityMode('standard'));
 qualityOpt2k?.addEventListener('click', () => setQualityMode('2k'));
 
+// Worker Count Selector handlers (1 to 7 Chromes)
+let currentWorkerCount = 7; // Default: 7 Parallel Chromes
+const workerPills = document.querySelectorAll('#worker-count-group .speed-pill-option');
+workerPills.forEach((pill) => {
+  pill.addEventListener('click', () => {
+    workerPills.forEach((p) => p.classList.remove('active'));
+    pill.classList.add('active');
+    const radio = pill.querySelector('input[type="radio"]');
+    if (radio) {
+      radio.checked = true;
+      currentWorkerCount = parseInt(radio.value, 10) || 7;
+      console.log('[Workers] Parallel Worker Count set to:', currentWorkerCount);
+    }
+  });
+});
+
 // Dismiss & Restore Monitor Handlers
 function dismissMonitor() {
   console.log('[UI] Monitor dismissed by user');
@@ -501,6 +517,7 @@ async function fetchStatus() {
     renderScenesList(data.scenes || [], data.currentRunCount);
     renderLogs(data.logs || []);
     renderGallery(data.images || [], data.currentRunCount);
+    renderWorkerTelemetry(data.activeRun);
 
     // Schedule next poll adaptively: 1000ms when active, 2500ms when idle
     const isBusy = data.activeRun?.status === 'generating' || data.activeRun?.status === 'launched' || data.activeRun?.status === 'syncing';
@@ -509,6 +526,48 @@ async function fetchStatus() {
     console.warn('Status fetch error:', err);
     scheduleNextPoll(3000);
   }
+}
+
+// Render Multi-Worker Live Status Cards
+function renderWorkerTelemetry(activeRun) {
+  const grid = document.getElementById('workers-live-grid');
+  const badge = document.getElementById('workers-active-count-badge');
+  if (!grid) return;
+
+  const numWorkers = activeRun?.workerCount || currentWorkerCount || 7;
+  const isGenerating = activeRun?.status === 'generating';
+  const workerStatus = activeRun?.workerStatus || {};
+
+  if (badge) {
+    badge.textContent = isGenerating ? `${numWorkers} Workers Active` : `${numWorkers} Workers Standby`;
+    badge.style.color = isGenerating ? '#4ade80' : '#38bdf8';
+    badge.style.borderColor = isGenerating ? 'rgba(74, 222, 128, 0.4)' : 'rgba(56, 189, 248, 0.3)';
+    badge.style.background = isGenerating ? 'rgba(74, 222, 128, 0.15)' : 'rgba(56, 189, 248, 0.15)';
+  }
+
+  let html = '';
+  for (let w = 1; w <= numWorkers; w++) {
+    const st = workerStatus[w];
+    const isWActive = isGenerating && Boolean(st);
+    const progressDesc = st ? `${st.localIndex || 0}/${st.workerScenes || 0}` : 'Idle';
+    const statusText = isWActive ? (st.status === 'generating_scene' ? `⚡ Scene ${st.sceneIndex}` : 'Active') : 'Standby';
+    const borderCol = isWActive ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255,255,255,0.08)';
+    const bgCol = isWActive ? 'rgba(56, 189, 248, 0.1)' : 'rgba(15, 23, 42, 0.6)';
+
+    html += `
+      <div style="background: ${bgCol}; border: 1px solid ${borderCol}; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 0.76rem; font-weight: 700; color: #f8fafc;">Worker #${w}</span>
+          <span style="font-size: 0.65rem; color: ${isWActive ? '#38bdf8' : '#64748b'}; font-weight: 600;">${statusText}</span>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; color: #94a3b8;">
+          <span>Progress:</span>
+          <span style="font-weight: 600; color: #e2e8f0;">${progressDesc}</span>
+        </div>
+      </div>
+    `;
+  }
+  grid.innerHTML = html;
 }
 
 function scheduleNextPoll(delayMs) {
@@ -552,6 +611,7 @@ btnGenerate?.addEventListener('click', async () => {
         prompts,
         launchBrowser,
         projectName,
+        workerCount: currentWorkerCount,
         speedMode: currentSpeedMode,
         imageQuality: currentImageQuality,
       }),
@@ -571,7 +631,7 @@ btnGenerate?.addEventListener('click', async () => {
     if (btnAlertDismiss) btnAlertDismiss.style.display = 'none';
 
     if (statusAlertText) {
-      statusAlertText.innerHTML = `🚀 <b>${prompts.length} Prompts Queued for "${data.projectId || projectName}"!</b> Generating at <b>${(data.speedMode || currentSpeedMode).toUpperCase()}</b> speed with <b>${(data.imageQuality || currentImageQuality).toUpperCase()}</b> download mode.`;
+      statusAlertText.innerHTML = `🚀 <b>${prompts.length} Prompts Queued for "${data.projectId || projectName}"!</b> Generating across <b>${data.workerCount || currentWorkerCount} Parallel Chrome Workers</b> at <b>${(data.speedMode || currentSpeedMode).toUpperCase()}</b> speed.`;
     }
 
     // Immediately trigger status refresh
@@ -619,13 +679,17 @@ btnRelaunch?.addEventListener('click', async () => {
 
 // 🔄 Reset Studio to Initial Clean State (Preserves Chrome Google Login)
 const btnResetStudio = document.getElementById('btn-reset-studio');
-btnResetStudio?.addEventListener('click', async () => {
+const btnResetStudioMain = document.getElementById('btn-reset-studio-main');
+
+async function handleStudioReset(btn) {
   const confirmed = confirm('Are you sure you want to reset Flow Auto Studio to its clean initial state?\n\n- Clears prompts & queue\n- Resets project & error states\n- Resets Google Flow canvas cache\n- Preserves your Google Chrome login session');
   if (!confirmed) return;
 
-  const originalHTML = btnResetStudio.innerHTML;
-  btnResetStudio.disabled = true;
-  btnResetStudio.innerHTML = '<span>⏳</span><span>Resetting App...</span>';
+  const originalHTML = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span><span>Resetting App...</span>';
+  }
 
   try {
     const res = await fetch('/api/reset-app', { method: 'POST' });
@@ -643,28 +707,25 @@ btnResetStudio?.addEventListener('click', async () => {
 
       // 3. Reset speed and quality to default
       setSpeedMode('fast');
-      setImageQuality('standard');
+      setQualityMode('standard');
 
       // 4. Hide progress section & alerts
       if (progressSection) progressSection.style.display = 'none';
       if (btnToggleMonitor) btnToggleMonitor.style.display = 'inline-flex';
       if (statusAlertText) statusAlertText.innerHTML = '';
 
-      // 5. Clear logs UI
-      if (logEntries) {
-        logEntries.innerHTML = '<div class="log-entry system"><span class="log-time">[Ready]</span> <span class="log-msg">App reset to initial launch conditions. Chrome login preserved.</span></div>';
-      }
-
-      // 6. Reset monitor error and states
+      // 5. Reset monitor error and states
       isMonitorDismissedByUser = false;
       hasNotifiedCompletion = false;
 
-      btnResetStudio.innerHTML = '<span>✅</span><span>Reset Done!</span>';
-      btnResetStudio.style.borderColor = 'rgba(34,197,94,0.5)';
-      btnResetStudio.style.color = '#4ade80';
+      if (btn) {
+        btn.innerHTML = '<span>✅</span><span>Reset Done!</span>';
+        btn.style.borderColor = 'rgba(34,197,94,0.5)';
+        btn.style.color = '#4ade80';
+      }
 
       showToast('🔄 Studio Reset Complete!',
-        'Flow Auto Studio has been restored to fresh initial state. Your Google Chrome login is safely preserved.', 7000);
+        'Flow Auto Studio has been restored to fresh initial state. Your Google Chrome logins are safely preserved.', 7000);
 
       fetchStatus();
     } else {
@@ -673,14 +734,133 @@ btnResetStudio?.addEventListener('click', async () => {
   } catch (err) {
     alert('Error resetting app: ' + err.message);
   } finally {
+    if (btn) {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      }, 3000);
+    }
+  }
+}
+
+btnResetStudio?.addEventListener('click', () => handleStudioReset(btnResetStudio));
+btnResetStudioMain?.addEventListener('click', () => handleStudioReset(btnResetStudioMain));
+
+// 🧹 Quick Clear Google Flow Cache & Unusual Activity Fix
+const btnFixUnusualQuick = document.getElementById('btn-fix-unusual-quick');
+btnFixUnusualQuick?.addEventListener('click', async () => {
+  const orig = btnFixUnusualQuick.innerHTML;
+  btnFixUnusualQuick.disabled = true;
+  btnFixUnusualQuick.innerHTML = '<span>⏳</span> Clearing...';
+  try {
+    const res = await fetch('/api/fix-unusual-activity', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      btnFixUnusualQuick.innerHTML = '<span>✅</span> Done!';
+      showToast('🧹 Flow Cache Cleared', 'Google Flow site data reset and fresh canvas ready!', 6000);
+    } else {
+      throw new Error(data.error || 'Failed to clear');
+    }
+  } catch (e) {
+    alert('Could not clear Flow cache: ' + e.message);
+  } finally {
     setTimeout(() => {
-      btnResetStudio.disabled = false;
-      btnResetStudio.innerHTML = originalHTML;
-      btnResetStudio.style.borderColor = '';
-      btnResetStudio.style.color = '';
-    }, 3000);
+      btnFixUnusualQuick.disabled = false;
+      btnFixUnusualQuick.innerHTML = orig;
+    }, 2500);
   }
 });
+
+// 🔑 Google Accounts / Chrome Profile Manager Modal Logic
+const btnOpenAccountsMgr = document.getElementById('btn-open-accounts-mgr');
+const profileModal = document.getElementById('profile-modal');
+const profileModalClose = document.getElementById('profile-modal-close');
+const profileModalOverlay = document.getElementById('profile-modal-overlay');
+const profilesGrid = document.getElementById('profiles-grid');
+
+function openProfileModal() {
+  if (profileModal) profileModal.style.display = 'flex';
+  loadProfilesStatus();
+}
+
+function closeProfileModal() {
+  if (profileModal) profileModal.style.display = 'none';
+}
+
+btnOpenAccountsMgr?.addEventListener('click', openProfileModal);
+profileModalClose?.addEventListener('click', closeProfileModal);
+profileModalOverlay?.addEventListener('click', closeProfileModal);
+
+async function loadProfilesStatus() {
+  if (!profilesGrid) return;
+  profilesGrid.innerHTML = '<div style="color: #94a3b8; font-size: 0.85rem; padding: 20px; text-align: center;">Checking Chrome profiles...</div>';
+  try {
+    const res = await fetch('/api/profiles/status');
+    const data = await res.json();
+    if (data.success && Array.isArray(data.profiles)) {
+      renderProfilesList(data.profiles);
+    }
+  } catch (err) {
+    profilesGrid.innerHTML = `<div style="color: #ef4444; font-size: 0.85rem; padding: 12px;">Error loading profiles: ${err.message}</div>`;
+  }
+}
+
+function renderProfilesList(profiles) {
+  if (!profilesGrid) return;
+  profilesGrid.innerHTML = profiles.map(p => {
+    const hasCookies = p.hasCookies;
+    const badgeColor = hasCookies ? '#22c55e' : '#f59e0b';
+    const badgeText = hasCookies ? '✓ Logged In' : '⚠️ Not Logged In';
+    const isPrimary = p.workerId === 1;
+
+    return `
+      <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-weight: 700; font-size: 0.88rem; color: #f8fafc;">
+            🌐 Chrome #${p.workerId} ${isPrimary ? '<span style="font-size: 0.65rem; background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 4px; padding: 1px 4px; margin-left: 4px;">MAIN ACCOUNT</span>' : ''}
+          </span>
+          <span style="font-size: 0.72rem; color: ${badgeColor}; font-weight: 600;">
+            ${badgeText}
+          </span>
+        </div>
+        <div style="font-size: 0.72rem; color: #64748b; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${p.profileDir}">
+          Profile: ${p.profileName}
+        </div>
+        <button type="button" class="btn btn-xs" onclick="window.launchWorkerLogin(${p.workerId}, this)" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.78rem; font-weight: 600; padding: 6px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px;">
+          <span>🌐</span> Open Chrome #${p.workerId} & Sign In
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+window.launchWorkerLogin = async function(workerId, btn) {
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> Opening Chrome...';
+  try {
+    const res = await fetch('/api/profiles/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workerId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      btn.innerHTML = '<span>✅</span> Window Opened!';
+      btn.style.color = '#4ade80';
+      showToast(`Chrome #${workerId} Opened`, `Sign in to Google Flow in this Chrome window. Your login will be saved permanently.`, 9000);
+      setTimeout(() => loadProfilesStatus(), 4000);
+    } else {
+      throw new Error(data.error || 'Failed to open Chrome');
+    }
+  } catch (err) {
+    alert('Error opening Chrome #' + workerId + ': ' + err.message);
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+};
 
 // 🔌 Reload Extension button
 const btnReloadExt = document.getElementById('btn-reload-ext');

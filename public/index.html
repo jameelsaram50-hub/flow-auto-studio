@@ -132,6 +132,42 @@
             </label>
           </div>
         </div>
+
+        <div class="workers-group-item" style="width: 100%; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span class="speed-title" style="margin-bottom: 0;">🌐 Parallel Chrome Workers:</span>
+            <button type="button" id="btn-open-accounts-mgr" class="btn btn-xs btn-outline" style="color: #38bdf8; border-color: rgba(56,189,248,0.4); font-size: 11px; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+              <span>🔑</span> Manage Google Accounts (1–7)
+            </button>
+          </div>
+          <div class="speed-buttons-group" id="worker-count-group">
+            <label class="speed-pill-option" title="1 Chrome Worker">
+              <input type="radio" name="workerCount" value="1">
+              <span class="pill-dot"></span>
+              <span>1 Worker</span>
+            </label>
+            <label class="speed-pill-option" title="2 Parallel Chrome Workers">
+              <input type="radio" name="workerCount" value="2">
+              <span class="pill-dot"></span>
+              <span>2 Workers</span>
+            </label>
+            <label class="speed-pill-option" title="3 Parallel Chrome Workers">
+              <input type="radio" name="workerCount" value="3">
+              <span class="pill-dot"></span>
+              <span>3 Workers</span>
+            </label>
+            <label class="speed-pill-option" title="5 Parallel Chrome Workers">
+              <input type="radio" name="workerCount" value="5">
+              <span class="pill-dot"></span>
+              <span>5 Workers</span>
+            </label>
+            <label class="speed-pill-option active" id="worker-opt-7" title="7 Parallel Chrome Workers (Maximum Speed!)">
+              <input type="radio" name="workerCount" value="7" checked>
+              <span class="pill-dot"></span>
+              <span>🔥 7 Chromes (7x Ultra Speed)</span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <!-- Main Action Section -->
@@ -147,30 +183,19 @@
         </button>
 
         <div class="quick-options">
-          <label class="toggle-control" title="Automatically opens Google Flow & extension when clicking Generate">
+          <label class="toggle-control" title="Automatically opens Google Flow when clicking Generate">
             <input type="checkbox" id="chk-auto-launch" checked>
             <span class="toggle-slider"></span>
-            <span class="toggle-label">Auto-Launch Chrome & Extension</span>
+            <span class="toggle-label">Auto-Launch Workers</span>
           </label>
 
-          <button class="btn btn-ghost btn-sm" id="btn-relaunch" title="Manually re-launch Chrome if window was closed">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-            Re-open Chrome
+          <button class="btn btn-ghost btn-sm" id="btn-reset-studio-main" title="Reset all inputs, memory, and state like a fresh app launch (Keeps all Chrome logins safe)" style="border-color: rgba(239,68,68,0.4); color: #f87171;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            🔄 Reset Studio
           </button>
 
-          <button class="btn btn-ghost btn-sm" id="btn-reload-ext" title="Force reload the TurboFlow extension in Chrome (fixes stuck extension)" style="border-color: rgba(99,102,241,0.4); color: #818cf8;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6"/><path d="M2 12a10 10 0 1 0 2.35-6.35L2 2"/></svg>
-            🔌 Reload Extension
-          </button>
-
-          <button class="btn btn-ghost btn-sm" id="btn-save-session" title="Save your Google login so Chrome auto-logs in every time (no re-login needed)" style="border-color: rgba(34,197,94,0.4); color: #4ade80;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            💾 Save Login Session
-          </button>
-
-          <button class="btn btn-ghost btn-sm" id="btn-kill-chrome" title="Close Chrome window cleanly" style="border-color: rgba(239,68,68,0.3); color: #f87171;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            Close Chrome
+          <button class="btn btn-ghost btn-sm" id="btn-fix-unusual-quick" title="1-Click fix for Flow Unusual Activity error" style="border-color: rgba(234,179,8,0.4); color: #facc15;">
+            🧹 Clear Flow Cache
           </button>
         </div>
       </div>
@@ -233,6 +258,17 @@
         </div>
         <div class="progress-track">
           <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Multi-Worker Parallel Live Cards Grid -->
+      <div class="workers-live-section" id="workers-live-section" style="margin-top: 14px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;">Parallel Chrome Workers Telemetry</span>
+          <span id="workers-active-count-badge" style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 9999px; padding: 2px 8px; font-weight: 600;">Standby</span>
+        </div>
+        <div class="workers-live-grid" id="workers-live-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
+          <!-- Populated dynamically via JS -->
         </div>
       </div>
 
@@ -357,6 +393,28 @@
     </div>
   </div>
 
-  <script src="app.js?v=3.5"></script>
+  <!-- Google Accounts & Multi-Chrome Manager Modal -->
+  <div class="modal" id="profile-modal" style="display: none;">
+    <div class="modal-overlay" id="profile-modal-overlay"></div>
+    <div class="modal-content" style="max-width: 660px; background: #0b1329; border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 16px; padding: 24px; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.85);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+        <h3 style="margin: 0; font-size: 1.15rem; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+          <span>🔑</span> Google Accounts & Multi-Chrome Profiles
+        </h3>
+        <button class="modal-close" id="profile-modal-close" style="background: none; border: none; font-size: 22px; color: #94a3b8; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+      <p style="font-size: 0.83rem; color: #94a3b8; margin-bottom: 16px; line-height: 1.5;">
+        Each worker has a permanent Chrome profile. Click <strong>"Open & Sign In"</strong> below to launch that Chrome window and log in to a Google account once. The login stays saved permanently!
+      </p>
+      <div id="profiles-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin-bottom: 18px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
+        <!-- Populated dynamically via JS -->
+      </div>
+      <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 12px; font-size: 0.8rem; color: #7dd3fc; line-height: 1.4;">
+        💡 <strong>Pro-Tip:</strong> Chrome #1 has your existing account. If you log in to separate Google accounts across Chromes #2 through #7, all 7 workers will generate in parallel without hitting rate limits!
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=4.0"></script>
 </body>
 </html>
