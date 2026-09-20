@@ -33,7 +33,7 @@ function getProfileDir(workerId = 1) {
   return dir;
 }
 
-const { spawnSync, spawn } = require('child_process');
+const { spawnSync, spawn, exec } = require('child_process');
 
 function cleanupProfileLocks(profileDir) {
   if (process.platform === 'win32' && profileDir) {
@@ -77,19 +77,26 @@ function openWorkerForLogin(workerId = 1) {
   // 1. Free profile locks and kill any stale zombies for this profile
   cleanupProfileLocks(profileDir);
 
-  // 2. Launch normal, fully-interactive Chrome on user's desktop
-  const child = spawn(chromeExe, [
-    `--user-data-dir=${profileDir}`,
-    '--profile-directory=Default',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--start-maximized',
-    flowUrl
-  ], {
-    detached: true,
-    stdio: 'ignore'
+  // 2. Launch using Windows Shell "start" command for guaranteed interactive GUI
+  const cmd = `start "" "${chromeExe}" --user-data-dir="${profileDir}" --new-window --start-maximized "${flowUrl}"`;
+  exec(cmd, { shell: 'cmd.exe' }, (err) => {
+    if (err) {
+      console.warn(`[Playwright Engine] start command fallback to spawn: ${err.message}`);
+      const child = spawn(chromeExe, [
+        `--user-data-dir=${profileDir}`,
+        '--profile-directory=Default',
+        '--new-window',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--start-maximized',
+        flowUrl
+      ], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+    }
   });
-  child.unref();
 
   // 3. Bring Chrome to front on Windows
   setTimeout(() => {
