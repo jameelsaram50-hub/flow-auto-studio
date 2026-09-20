@@ -826,26 +826,27 @@ async function loadProfilesStatus() {
 function renderProfilesList(profiles) {
   if (!profilesGrid) return;
   profilesGrid.innerHTML = profiles.map(p => {
-    const hasCookies = p.hasCookies;
-    const badgeColor = hasCookies ? '#22c55e' : '#f59e0b';
-    const badgeText = hasCookies ? '✓ Logged In' : '⚠️ Not Logged In';
+    const hasLogin = p.hasLogin;
+    const email = p.email;
+    const badgeColor = hasLogin ? '#22c55e' : '#f59e0b';
+    const badgeText = hasLogin ? (email ? `✓ ${email}` : '✓ Logged In') : '⚠️ Login Needed';
     const isPrimary = p.workerId === 1;
 
     return `
-      <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
+      <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid ${hasLogin ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'}; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
         <div style="display: flex; align-items: center; justify-content: space-between;">
           <span style="font-weight: 700; font-size: 0.88rem; color: #f8fafc;">
-            🌐 Chrome #${p.workerId} ${isPrimary ? '<span style="font-size: 0.65rem; background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 4px; padding: 1px 4px; margin-left: 4px;">MAIN ACCOUNT</span>' : ''}
+            🌐 Chrome #${p.workerId} ${isPrimary ? '<span style="font-size: 0.65rem; background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 4px; padding: 1px 4px; margin-left: 4px;">MAIN</span>' : ''}
           </span>
           <span style="font-size: 0.72rem; color: ${badgeColor}; font-weight: 600;">
             ${badgeText}
           </span>
         </div>
         <div style="font-size: 0.72rem; color: #64748b; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${p.profileDir}">
-          Profile: ${p.profileName}
+          Profile #${p.workerId}
         </div>
         <button type="button" class="btn btn-xs" onclick="window.launchWorkerLogin(${p.workerId}, this)" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.78rem; font-weight: 600; padding: 6px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px;">
-          <span>🌐</span> Open Chrome #${p.workerId} & Sign In
+          <span>🌐</span> ${hasLogin ? 'Re-open Chrome #' + p.workerId : 'Open Chrome #' + p.workerId + ' & Sign In'}
         </button>
       </div>
     `;

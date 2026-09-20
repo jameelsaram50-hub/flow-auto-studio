@@ -60,15 +60,33 @@ function getProfilesStatus() {
   for (let i = 1; i <= 7; i++) {
     const dir = getProfileDir(i);
     const hasDir = fs.existsSync(dir);
-    const cookieFile1 = path.join(dir, 'Default', 'Network', 'Cookies');
-    const cookieFile2 = path.join(dir, 'Default', 'Cookies');
-    const hasCookies = fs.existsSync(cookieFile1) || fs.existsSync(cookieFile2);
+    const prefPath = path.join(dir, 'Default', 'Preferences');
+    let email = null;
+    let hasLogin = false;
+
+    if (fs.existsSync(prefPath)) {
+      try {
+        const obj = JSON.parse(fs.readFileSync(prefPath, 'utf8'));
+        if (Array.isArray(obj.account_info) && obj.account_info.length > 0 && obj.account_info[0].email) {
+          email = obj.account_info[0].email;
+          hasLogin = true;
+        }
+      } catch (e) {}
+    }
+
+    // For worker 1, fallback to cookies if account_info isn't populated
+    if (i === 1 && !hasLogin) {
+      const cookieFile = path.join(dir, 'Default', 'Network', 'Cookies');
+      if (fs.existsSync(cookieFile)) hasLogin = true;
+    }
+
     status.push({
       workerId: i,
       profileDir: dir,
       exists: hasDir,
-      hasLogin: hasCookies,
-      status: hasCookies ? 'Ready (Login Detected)' : (hasDir ? 'Created (Login Needed)' : 'Not Created')
+      hasLogin,
+      email: email || null,
+      status: hasLogin ? (email ? `Logged in (${email})` : 'Ready (Login Detected)') : (hasDir ? 'Created (Login Needed)' : 'Not Created')
     });
   }
   return status;
