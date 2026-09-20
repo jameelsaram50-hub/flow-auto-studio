@@ -63,29 +63,17 @@ function cleanupProfileLocks(profileDir) {
   } catch (e) {}
 }
 
-function openWorkerForLogin(workerId = 1) {
-  const chromeExe = findChromePath();
-  const profileDir = getProfileDir(workerId);
+async function openWorkerForLogin(workerId = 1) {
+  console.log(`[Playwright Engine] Opening Chrome for Worker #${workerId} Google login via Playwright persistent context...`);
+  const workerObj = await launchWorkerContext(workerId);
+  const page = workerObj.page;
   const flowUrl = 'https://flow.google.com/';
-
-  console.log(`[Playwright Engine] Opening Chrome for Worker #${workerId} Google login...`);
-  console.log(`[Playwright Engine] Profile directory: ${profileDir}`);
-
-  // Free profile lock before opening so Chrome doesn't abort with ProcessSingleton error
-  cleanupProfileLocks(profileDir);
-
-  const child = spawn(chromeExe, [
-    `--user-data-dir=${profileDir}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--start-maximized',
-    flowUrl
-  ], {
-    detached: true,
-    stdio: 'ignore'
-  });
-  child.unref();
-  return { success: true, workerId, profileDir };
+  try {
+    if (!page.url() || page.url() === 'about:blank') {
+      await page.goto(flowUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    }
+  } catch (e) {}
+  return { success: true, workerId, profileDir: workerObj.profileDir };
 }
 
 function getProfilesStatus() {
