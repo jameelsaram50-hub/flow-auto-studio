@@ -165,7 +165,7 @@ function updateCounters() {
   const prompts = getPromptsList();
   const count = prompts.length;
   promptCounter.textContent = `${count} ${count === 1 ? 'Prompt' : 'Prompts'}`;
-  charCounter.textContent = `${(promptInput.value || '').length} characters`;
+  charCounter.textContent = `${count} ${count === 1 ? 'Prompt' : 'Prompts'}`;
 
   if (count > 0) {
     btnGenerate.classList.remove('disabled');
