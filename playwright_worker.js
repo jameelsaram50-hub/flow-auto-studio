@@ -66,17 +66,37 @@ function cleanupProfileLocks(profileDir) {
   } catch (e) {}
 }
 
-async function openWorkerForLogin(workerId = 1) {
-  console.log(`[Playwright Engine] Opening Chrome for Worker #${workerId} Google login via Playwright persistent context...`);
-  const workerObj = await launchWorkerContext(workerId);
-  const page = workerObj.page;
+function openWorkerForLogin(workerId = 1) {
+  const chromeExe = findChromePath();
+  const profileDir = getProfileDir(workerId);
   const flowUrl = 'https://flow.google.com/';
-  try {
-    if (!page.url() || !page.url().includes('google.com')) {
-      await page.goto(flowUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
-    }
-  } catch (e) {}
-  return { success: true, workerId, profileDir: workerObj.profileDir };
+
+  console.log(`[Playwright Engine] Opening Chrome for Worker #${workerId} Google login...`);
+  console.log(`[Playwright Engine] Profile directory: ${profileDir}`);
+
+  // 1. Free profile locks and kill any stale zombies for this profile
+  cleanupProfileLocks(profileDir);
+
+  // 2. Launch normal, fully-interactive Chrome on user's desktop
+  const child = spawn(chromeExe, [
+    `--user-data-dir=${profileDir}`,
+    '--profile-directory=Default',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--start-maximized',
+    flowUrl
+  ], {
+    detached: true,
+    stdio: 'ignore'
+  });
+  child.unref();
+
+  // 3. Bring Chrome to front on Windows
+  setTimeout(() => {
+    bringChromeToFront();
+  }, 1000);
+
+  return { success: true, workerId, profileDir };
 }
 
 function getProfilesStatus() {
