@@ -33,23 +33,26 @@ function getProfileDir(workerId = 1) {
   return dir;
 }
 
-const { execSync, spawn } = require('child_process');
+const { spawnSync, spawn } = require('child_process');
 
 function cleanupProfileLocks(profileDir) {
   if (process.platform === 'win32' && profileDir) {
     try {
       const baseDirName = path.basename(profileDir);
-      const out = execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"name = 'chrome.exe'\\" | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | ForEach-Object { $_.ProcessId }"`, { encoding: 'utf8' });
-      const pids = out.trim().split(/\s+/).filter(Boolean);
+      const psCommand = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | Select-Object -ExpandProperty ProcessId`;
+      const res = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCommand], { encoding: 'utf8' });
+      const pids = (res.stdout || '').trim().split(/\s+/).filter(Boolean);
       if (pids.length > 0) {
         console.log(`[Playwright Engine] Freeing profile lock for ${baseDirName} (PIDs: ${pids.join(', ')})...`);
-        execSync(`taskkill /F ${pids.map(p => `/PID ${p}`).join(' ')}`, { stdio: 'ignore' });
+        spawnSync('taskkill.exe', ['/F', ...pids.flatMap(p => ['/PID', p])], { stdio: 'ignore' });
         try {
           const sleepBuf = new Int32Array(new SharedArrayBuffer(4));
-          Atomics.wait(sleepBuf, 0, 0, 300);
+          Atomics.wait(sleepBuf, 0, 0, 400);
         } catch (e) {}
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[Playwright Engine] cleanupProfileLocks error:', e.message);
+    }
   }
 
   try {
@@ -69,7 +72,7 @@ async function openWorkerForLogin(workerId = 1) {
   const page = workerObj.page;
   const flowUrl = 'https://flow.google.com/';
   try {
-    if (!page.url() || page.url() === 'about:blank') {
+    if (!page.url() || !page.url().includes('google.com')) {
       await page.goto(flowUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
     }
   } catch (e) {}
