@@ -767,6 +767,17 @@ body {
   color: var(--text-muted);
 }
 
+/* Google Accounts Profile Manager Modal */
+#profile-modal {
+  display: none;
+}
+#profile-modal.open {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: 99999 !important;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .app-header {

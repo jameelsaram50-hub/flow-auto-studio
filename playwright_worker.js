@@ -867,7 +867,7 @@ async function runPlaywrightBatch({
 
   // Check which profiles currently have saved logins
   const profileStatuses = getProfilesStatus();
-  console.log('[Playwright Orchestrator] Profile check:', profileStatuses.map(p => `W#${p.workerId}: ${p.hasCookies ? 'Login OK' : 'No Login'}`).join(', '));
+  console.log('[Playwright Orchestrator] Profile check:', profileStatuses.map(p => `W#${p.workerId}: ${p.hasLogin ? 'Login OK' : 'No Login'}`).join(', '));
 
   const activeWorkerConfigs = [];
   const unloggedItems = [];
@@ -878,7 +878,7 @@ async function runPlaywrightBatch({
     if (!bucket || bucket.length === 0) continue;
 
     const prof = profileStatuses.find(p => p.workerId === workerId);
-    const hasSavedLogin = workerId === 1 || (prof && prof.hasCookies);
+    const hasSavedLogin = workerId === 1 || (prof && prof.hasLogin);
 
     if (!hasSavedLogin) {
       console.log(`[Playwright Orchestrator] ℹ️ Worker #${workerId} has no saved Google login. Its ${bucket.length} scene(s) will be executed by Worker #1.`);

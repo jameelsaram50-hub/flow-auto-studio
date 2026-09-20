@@ -519,7 +519,10 @@ function closeModal() {
 modalClose?.addEventListener('click', closeModal);
 modalOverlay?.addEventListener('click', closeModal);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Escape') {
+    closeModal();
+    if (typeof closeProfileModal === 'function') closeProfileModal();
+  }
 });
 
 // Fetch server status & live images with adaptive polling
@@ -797,12 +800,18 @@ const profileModalOverlay = document.getElementById('profile-modal-overlay');
 const profilesGrid = document.getElementById('profiles-grid');
 
 function openProfileModal() {
-  if (profileModal) profileModal.style.display = 'flex';
+  if (profileModal) {
+    profileModal.style.display = 'flex';
+    profileModal.classList.add('open');
+  }
   loadProfilesStatus();
 }
 
 function closeProfileModal() {
-  if (profileModal) profileModal.style.display = 'none';
+  if (profileModal) {
+    profileModal.classList.remove('open');
+    profileModal.style.display = 'none';
+  }
 }
 
 btnOpenAccountsMgr?.addEventListener('click', openProfileModal);
