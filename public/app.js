@@ -127,6 +127,9 @@ workerPills.forEach((pill) => {
     if (radio) {
       radio.checked = true;
       currentWorkerCount = parseInt(radio.value, 10) || 7;
+      if (typeof updateWorkerCanvasTabs === 'function') {
+        updateWorkerCanvasTabs(currentWorkerCount);
+      }
       console.log('[Workers] Parallel Worker Count set to:', currentWorkerCount);
     }
   });
@@ -1140,5 +1143,5 @@ function initLiveChromeStream() {
 
 // Start continuous live stream
 initLiveChromeStream();
-updateWorkerCanvasTabs(2);
+updateWorkerCanvasTabs(currentWorkerCount || 7);
 

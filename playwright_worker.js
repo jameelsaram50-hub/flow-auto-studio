@@ -283,7 +283,7 @@ async function ensureDirectCanvasMode(page) {
     }
 
     // 2. Close Agent Session side panel ("Untitled session" panel) if open
-    const sessionCloseBtn = page.locator('button[aria-label="Close"], [role="button"][aria-label="Close"], button:has-text("close")').first();
+    const sessionCloseBtn = page.locator('button[aria-label="Close"], [role="button"][aria-label="Close"], button:has-text("close"), button[aria-label="Close panel"], button[aria-label="Close session"]').first();
     if (await sessionCloseBtn.isVisible({ timeout: 600 }).catch(() => false)) {
       console.log('[Playwright Engine] 🛑 Closing Agent Session side panel to return to direct canvas mode...');
       await sessionCloseBtn.click().catch(() => {});
@@ -296,12 +296,15 @@ async function ensureDirectCanvasMode(page) {
       await page.waitForTimeout(300);
     }
 
-    // 3. Check Agent Mode chip: if active (aria-pressed="true"), click it to turn OFF agent mode
-    const agentChip = page.locator('button.agent-mode-chip, button:has-text("Agent")').first();
+    // 3. Check Agent Mode chip: if active (aria-pressed="true", aria-checked="true", or selected/active class), click it to turn OFF agent mode
+    const agentChip = page.locator('button.agent-mode-chip, button:has-text("Agent"), [role="button"]:has-text("Agent")').first();
     if (await agentChip.isVisible({ timeout: 600 }).catch(() => false)) {
       const isPressed = await agentChip.getAttribute('aria-pressed');
-      if (isPressed === 'true') {
-        console.log('[Playwright Engine] 🛑 Agent mode is ACTIVE (aria-pressed="true"). Switching to Direct Canvas Mode...');
+      const isChecked = await agentChip.getAttribute('aria-checked');
+      const classAttr = (await agentChip.getAttribute('class')) || '';
+      const isAgentActive = isPressed === 'true' || isChecked === 'true' || classAttr.includes('selected') || classAttr.includes('active');
+      if (isAgentActive) {
+        console.log('[Playwright Engine] 🛑 Agent mode is ACTIVE. Switching to Direct Canvas Mode...');
         await agentChip.click().catch(() => {});
         await page.waitForTimeout(600);
       }
@@ -752,6 +755,7 @@ async function runSingleWorker({
 
   let workerCompleted = 0;
   let currentSceneRetries = 0;
+  const unhandledItems = [];
 
   for (let idx = 0; idx < items.length; idx++) {
     const item = items[idx];
@@ -887,6 +891,7 @@ async function runSingleWorker({
       } else {
         console.error(`[Worker #${workerId}] ❌ Scene ${globalSceneIndex} failed after 2 retries.`);
         currentSceneRetries = 0;
+        unhandledItems.push(item);
         continue;
       }
     }
@@ -934,13 +939,19 @@ async function runSingleWorker({
       }
     }
 
-    workerCompleted++;
+    if (!savedOk) {
+      console.warn(`[Worker #${workerId}] ⚠️ Image for scene ${globalSceneIndex} could not be saved.`);
+      unhandledItems.push(item);
+    } else {
+      workerCompleted++;
+    }
+
+    const chromeScreenshotUrl = await captureSceneScreenshot(page, globalSceneIndex, `Worker #${workerId}: Scene ${globalSceneIndex} saved`);
     if (workerId === 1) {
-      await captureSceneScreenshot(page, globalSceneIndex, 'Generated & Saved');
       await captureDebugView(page, `Chrome #1: Scene ${globalSceneIndex} saved`);
     }
 
-    if (onImageGenerated) {
+    if (onImageGenerated && savedOk) {
       onImageGenerated({
         workerId,
         sceneIndex: globalSceneIndex,
@@ -948,7 +959,8 @@ async function runSingleWorker({
         totalScenes: totalGlobal,
         filename,
         localPath: savePath,
-        url: `/api/images/${encodeURIComponent(filename)}`
+        url: `/api/images/${encodeURIComponent(filename)}`,
+        chromeScreenshotUrl
       });
     }
 
@@ -967,8 +979,8 @@ async function runSingleWorker({
     }
   }
 
-  console.log(`[Worker #${workerId}] 🎉 Completed all assigned ${items.length} scenes!`);
-  return { workerId, completedCount: workerCompleted };
+  console.log(`[Worker #${workerId}] 🎉 Finished assigned scenes (Completed: ${workerCompleted}/${items.length}, Unhandled: ${unhandledItems.length})`);
+  return { workerId, completedCount: workerCompleted, unhandledItems };
 }
 
 async function runPlaywrightBatch({
@@ -1095,9 +1107,14 @@ async function runPlaywrightBatch({
     // If any worker couldn't log in or failed, execute its unhandled items on Worker #1 SEQUENTIALLY
     // (Never run concurrently on the same worker to prevent race conditions & duplicate images!)
     const pendingFallback = [];
-    for (const res of results) {
+    for (let idx = 0; idx < results.length; idx++) {
+      const res = results[idx];
+      const cfg = activeWorkerConfigs[idx];
       if (res.status === 'fulfilled' && res.value && res.value.unhandledItems && res.value.unhandledItems.length > 0 && res.value.workerId !== 1) {
         pendingFallback.push(...res.value.unhandledItems);
+      } else if (res.status === 'rejected' && cfg && cfg.workerId !== 1) {
+        console.warn(`[Playwright Orchestrator] ⚠️ Worker #${cfg.workerId} encountered crash:`, res.reason?.message || res.reason);
+        pendingFallback.push(...cfg.bucket);
       }
     }
 
