@@ -146,10 +146,29 @@ function getProfilesStatus() {
       } catch (e) {}
     }
 
-    // For worker 1, fallback to cookies if account_info isn't populated
-    if (i === 1 && !hasLogin) {
+    // Fallback for ALL workers: check if Network/Cookies has real data (>8KB = real session cookies present)
+    if (!hasLogin) {
       const cookieFile = path.join(dir, 'Default', 'Network', 'Cookies');
-      if (fs.existsSync(cookieFile)) hasLogin = true;
+      if (fs.existsSync(cookieFile)) {
+        try {
+          const size = fs.statSync(cookieFile).size;
+          if (size > 25600) hasLogin = true; // 25KB+ means real auth cookies, not just tracking
+        } catch (e) {}
+      }
+    }
+
+    // Also check for manually saved email file (written by cookie injector)
+    if (!email) {
+      const emailFile = path.join(dir, 'injected-email.txt');
+      if (fs.existsSync(emailFile)) {
+        try {
+          const savedEmail = fs.readFileSync(emailFile, 'utf8').trim();
+          if (savedEmail && savedEmail.includes('@')) {
+            email = savedEmail;
+            hasLogin = true;
+          }
+        } catch (e) {}
+      }
     }
 
     status.push({
@@ -606,6 +625,32 @@ async function runSingleWorker({
 
     if (isLoginPage) {
       console.warn(`[Worker #${workerId}] ⚠️ Not logged in to Google! (URL: ${curUrl})`);
+      if (onProgress) {
+        onProgress({
+          workerId,
+          status: 'not_logged_in',
+          message: `⚠️ Chrome #${workerId} is not signed into Google. Scenes reassigned to active worker.`
+        });
+      }
+      try { await workerObj.context.close(); } catch (e) {}
+      activeWorkerPool.delete(workerId);
+      return { workerId, notLoggedIn: true, unhandledItems: items, completedCount: 0 };
+    }
+
+    // If landed on /about landing page, click "Create with Google Flow"
+    if (page.url().includes('/about')) {
+      const createWithFlowBtn = page.locator('button:has-text("Create with Google Flow"), a:has-text("Create with Google Flow"), [role="button"]:has-text("Create with Google Flow")').first();
+      if (await createWithFlowBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
+        console.log(`[Worker #${workerId}] Landing page detected (/about). Clicking "Create with Google Flow"...`);
+        await createWithFlowBtn.click();
+        await page.waitForTimeout(3000);
+      }
+    }
+
+    // Re-check if redirected to Google login
+    const afterCheckUrl = page.url();
+    if (afterCheckUrl.includes('accounts.google.com') || afterCheckUrl.includes('/signin') || afterCheckUrl.includes('/ServiceLogin')) {
+      console.warn(`[Worker #${workerId}] ⚠️ Redirected to Google login! (URL: ${afterCheckUrl})`);
       if (onProgress) {
         onProgress({
           workerId,
