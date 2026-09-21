@@ -443,7 +443,7 @@ async function createNewProject(page) {
     bringChromeToFront();
     await page.waitForTimeout(3000);
 
-    const newBtn = page.locator('button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
+    const newBtn = page.locator('button.new-project-button, button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
     if (await newBtn.isVisible({ timeout: 15000 }).catch(() => false)) {
       const box = await newBtn.boundingBox().catch(() => null);
       if (box) {
@@ -713,10 +713,21 @@ async function runSingleWorker({
       return { workerId, notLoggedIn: true, unhandledItems: items, completedCount: 0 };
     }
 
-    const newBtn = page.locator('button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
-    if (await newBtn.isVisible({ timeout: 10000 }).catch(() => false)) {
+    const newBtn = page.locator('button.new-project-button, button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
+    if (await newBtn.isVisible({ timeout: 15000 }).catch(() => false)) {
+      console.log(`[Worker #${workerId}] Clicking "New project"...`);
       await newBtn.click();
       await page.waitForURL('**/project/**', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    }
+  }
+
+  // If still not on /project/, retry clicking New project button
+  if (!page.url().includes('/project/')) {
+    const retryNewBtn = page.locator('button.new-project-button, button:has-text("New project"), [role="button"]:has-text("New project")').first();
+    if (await retryNewBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log(`[Worker #${workerId}] Retrying "New project" click...`);
+      await retryNewBtn.click();
+      await page.waitForURL('**/project/**', { timeout: 20000 }).catch(() => {});
     }
   }
 
@@ -724,7 +735,7 @@ async function runSingleWorker({
   await ensureDirectCanvasMode(page);
 
   let editor = page.locator('div.ProseMirror').first();
-  const editorFound = await editor.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
+  const editorFound = await editor.waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false);
   if (!editorFound) {
     console.warn(`[Worker #${workerId}] ⚠️ Google Flow canvas editor not accessible (login needed or canvas blocked)`);
     if (onProgress) {
@@ -977,21 +988,18 @@ async function runPlaywrightBatch({
   isJobRunning = true;
   const totalPrompts = prompts.length;
 
-  // USER RULE:
-  // - If prompts < 70: divide across at most 3 Chromes
-  // - If prompts >= 70: divide across all 7 Chromes
-  let maxWorkersAllowed = totalPrompts < 70 ? 3 : 7;
-  let numWorkers = Math.min(maxWorkersAllowed, totalPrompts);
-  if (workerCount && Number(workerCount) > 0) {
-    numWorkers = Math.min(Number(workerCount), maxWorkersAllowed, totalPrompts);
-  }
+  // Parallel Worker Selection:
+  // Respect user's selected worker count (1, 2, 3, 5, or 7 Chromes from UI).
+  // Distribute across up to totalPrompts (cannot have more workers than prompts).
+  let requestedWorkers = (workerCount && Number(workerCount) > 0) ? Number(workerCount) : 7;
+  let numWorkers = Math.min(requestedWorkers, totalPrompts, 7);
 
-  console.log(`[Playwright Orchestrator] 🚀 Planning ${numWorkers} parallel Chrome worker(s) for ${totalPrompts} prompts (<70 -> 3 workers, >=70 -> 7 workers)...`);
+  console.log(`[Playwright Orchestrator] 🚀 Planning ${numWorkers} parallel Chrome worker(s) for ${totalPrompts} prompts (Requested: ${requestedWorkers} workers)...`);
 
   // Sequential Contiguous Chunking (NOT modulo):
-  // e.g. 5 prompts, 3 workers -> [1..2], [3..4], [5]
-  // e.g. 60 prompts, 3 workers -> [1..20], [21..40], [41..60]
-  // e.g. 70 prompts, 7 workers -> [1..10], [11..20], [21..30], [31..40], [41..50], [51..60], [61..70]
+  // e.g. 5 prompts, 5 workers -> [1], [2], [3], [4], [5]
+  // e.g. 7 prompts, 7 workers -> [1], [2], [3], [4], [5], [6], [7]
+  // e.g. 60 prompts, 7 workers -> contiguous distribution
   const workerBuckets = [];
   const baseSize = Math.floor(totalPrompts / numWorkers);
   const remainder = totalPrompts % numWorkers;
@@ -1054,7 +1062,7 @@ async function runPlaywrightBatch({
 
   for (let idx = 0; idx < activeWorkerConfigs.length; idx++) {
     const { workerId, bucket } = activeWorkerConfigs[idx];
-    const staggerMs = idx * 3500; // 3.5s stagger between worker launches
+    const staggerMs = idx * 1800; // 1.8s stagger between worker launches
 
     const promise = (async () => {
       if (staggerMs > 0) {

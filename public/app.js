@@ -537,7 +537,7 @@ async function fetchStatus() {
     renderLogs(data.logs || []);
     renderGallery(data.images || [], data.currentRunCount);
     renderWorkerTelemetry(data.activeRun);
-    updateWorkerCanvasTabs(data.activeRun?.workerCount || currentWorkerCount || 2);
+    updateWorkerCanvasTabs(data.activeRun?.workerCount || currentWorkerCount || 7);
 
     // Schedule next poll adaptively: 1000ms when active, 2500ms when idle
     const isBusy = data.activeRun?.status === 'generating' || data.activeRun?.status === 'launched' || data.activeRun?.status === 'syncing';
