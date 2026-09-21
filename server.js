@@ -1056,6 +1056,11 @@ app.post('/api/debug/clear-error', (req, res) => {
   res.json({ success: true });
 });
 
+// API: List all generated images
+app.get('/api/images', (req, res) => {
+  res.json({ success: true, images: getCachedImages() });
+});
+
 // API: Serve generated image file
 app.get('/api/images/:filename', (req, res) => {
   const filename = path.basename(req.params.filename);
