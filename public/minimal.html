@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flow Studio — Minimalist AI Image Generation</title>
+  <meta name="description" content="Sleek, minimalist interface for multi-worker parallel AI image automation with Google Flow.">
+  <link rel="stylesheet" href="/minimal.css">
+</head>
+<body>
+  <!-- Ambient background glow -->
+  <div class="ambient-glow"></div>
+
+  <main class="app-container">
+    <!-- Minimal Header -->
+    <header class="minimal-header">
+      <a href="/minimal.html" class="brand">
+        <div class="brand-icon">✦</div>
+        <span class="brand-name">Flow Studio</span>
+      </a>
+
+      <div class="header-meta">
+        <div class="status-badge" id="status-badge">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Ready</span>
+        </div>
+
+        <button class="btn-icon-minimal" id="btn-open-settings" title="Settings & Tools">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Prompt Input Section -->
+    <section class="prompt-composer">
+      <textarea 
+        id="prompt-input" 
+        class="prompt-textarea" 
+        placeholder="Enter your prompt here... Type multiple prompts (one per line) for high-speed multi-worker batch generation" 
+        rows="3"
+      ></textarea>
+
+      <div class="composer-bottom">
+        <div class="composer-meta">
+          <span class="prompt-count-pill" id="prompt-count-badge">0 Prompts</span>
+          <button type="button" class="btn-sample" id="btn-sample">Try Sample Prompts</button>
+        </div>
+
+        <div class="composer-actions">
+          <div class="worker-select-wrap" title="Select number of parallel Chrome workers">
+            <span>⚡ Workers:</span>
+            <select id="worker-select">
+              <option value="7" selected>7 Parallel Chromes</option>
+              <option value="5">5 Parallel Chromes</option>
+              <option value="3">3 Parallel Chromes</option>
+              <option value="2">2 Parallel Chromes</option>
+              <option value="1">1 Worker (Single)</option>
+            </select>
+          </div>
+
+          <button id="btn-generate" class="btn-generate-hero">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Generate Images</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Minimal Live Progress Bar (Only visible while generating) -->
+    <section class="live-progress-container" id="live-progress-container">
+      <div class="live-progress-header">
+        <span id="progress-label">Generating scenes...</span>
+        <span id="progress-percent">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </section>
+
+    <!-- Generated Images Gallery -->
+    <section class="gallery-section">
+      <div class="gallery-header">
+        <h2 class="gallery-title">
+          <span>Generated Images</span>
+          <span class="gallery-count-badge" id="gallery-count">0 Images</span>
+        </h2>
+      </div>
+
+      <div class="gallery-grid" id="gallery-grid">
+        <!-- Rendered dynamically by minimal.js -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Fullscreen Lightbox Modal -->
+  <div class="lightbox-modal" id="lightbox-modal">
+    <div class="lightbox-content">
+      <button class="lightbox-close" id="lightbox-close" title="Close preview">✕</button>
+      <div class="lightbox-img-wrap">
+        <img id="lightbox-img" src="" alt="Full preview" />
+      </div>
+      <div class="lightbox-footer">
+        <span class="lightbox-filename" id="lightbox-filename"></span>
+        <a class="btn-download-lightbox" id="lightbox-download" href="" download="">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Download HD</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Discrete Settings Drawer -->
+  <div class="drawer-modal" id="drawer-modal">
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <h3>Studio Settings</h3>
+        <button class="btn-icon-minimal" id="drawer-close">✕</button>
+      </div>
+
+      <div class="drawer-item">
+        <label>Engine Switcher</label>
+        <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
+          You can toggle anytime between this ultra-clean minimalist design and the full advanced dashboard.
+        </p>
+        <a href="/" style="display: inline-block; margin-top: 6px; font-size: 0.8rem; color: #38bdf8; text-decoration: none;">
+          ➔ Open Full Advanced Dashboard
+        </a>
+      </div>
+
+      <div class="drawer-actions">
+        <button class="btn-drawer-outline" id="btn-fix-flow">🧹 Clear Flow Cache</button>
+        <button class="btn-drawer-outline" id="btn-clear-queue" style="border-color: rgba(239, 68, 68, 0.3); color: #f87171;">🔄 Reset Session & Queue</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/minimal.js"></script>
+</body>
+</html>

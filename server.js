@@ -35,6 +35,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
+app.get('/minimal', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'minimal.html'));
+});
+
 // Path configuration
 const EXT_DIR = path.resolve(__dirname, 'turboflow-2.3.2.1-betaa', 'dist');
 const EXT_ID = 'bdmfcdallkljfeejmglojaanbonjhbkb';
