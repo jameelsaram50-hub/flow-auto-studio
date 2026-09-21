@@ -567,21 +567,31 @@ function renderWorkerTelemetry(activeRun) {
   let html = '';
   for (let w = 1; w <= numWorkers; w++) {
     const st = workerStatus[w];
-    const isWActive = isGenerating && Boolean(st);
-    const progressDesc = st ? `${st.localIndex || 0}/${st.workerScenes || 0}` : 'Idle';
-    const statusText = isWActive ? (st.status === 'generating_scene' ? `⚡ Scene ${st.sceneIndex}` : 'Active') : 'Standby';
-    const borderCol = isWActive ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255,255,255,0.08)';
-    const bgCol = isWActive ? 'rgba(56, 189, 248, 0.1)' : 'rgba(15, 23, 42, 0.6)';
+    const isWNotLoggedIn = st?.status === 'not_logged_in';
+    const isWActive = isGenerating && Boolean(st) && !isWNotLoggedIn;
+    let progressDesc = st ? `${st.localIndex || 0}/${st.workerScenes || 0}` : 'Idle';
+    if (isWNotLoggedIn) progressDesc = 'Reassigned to W#1';
+    let statusText = 'Standby';
+    let statusColor = '#64748b';
+    if (isWNotLoggedIn) {
+      statusText = '⚠️ Sign in Needed';
+      statusColor = '#f87171';
+    } else if (isWActive) {
+      statusText = st.status === 'generating_scene' ? `⚡ Scene ${st.sceneIndex}` : (st.status === 'running_fallback' ? '🔄 Fallback' : 'Active');
+      statusColor = '#38bdf8';
+    }
+    const borderCol = isWNotLoggedIn ? 'rgba(248, 113, 113, 0.4)' : (isWActive ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255,255,255,0.08)');
+    const bgCol = isWNotLoggedIn ? 'rgba(248, 113, 113, 0.1)' : (isWActive ? 'rgba(56, 189, 248, 0.1)' : 'rgba(15, 23, 42, 0.6)');
 
     html += `
       <div style="background: ${bgCol}; border: 1px solid ${borderCol}; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
         <div style="display: flex; align-items: center; justify-content: space-between;">
           <span style="font-size: 0.76rem; font-weight: 700; color: #f8fafc;">Worker #${w}</span>
-          <span style="font-size: 0.65rem; color: ${isWActive ? '#38bdf8' : '#64748b'}; font-weight: 600;">${statusText}</span>
+          <span style="font-size: 0.65rem; color: ${statusColor}; font-weight: 600;">${statusText}</span>
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; color: #94a3b8;">
           <span>Progress:</span>
-          <span style="font-weight: 600; color: #e2e8f0;">${progressDesc}</span>
+          <span style="font-weight: 600; color: ${isWNotLoggedIn ? '#f87171' : '#e2e8f0'};">${progressDesc}</span>
         </div>
       </div>
     `;

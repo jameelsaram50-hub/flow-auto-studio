@@ -1020,23 +1020,6 @@ async function runPlaywrightBatch({
         targetUrl
       });
 
-      // If during execution this worker couldn't log in, re-route its scenes to Worker 1
-      if (result && result.notLoggedIn && result.unhandledItems && result.unhandledItems.length > 0 && workerId !== 1) {
-        console.warn(`[Playwright Orchestrator] 🔄 Re-routing ${result.unhandledItems.length} scenes from Worker #${workerId} to Worker #1...`);
-        await runSingleWorker({
-          workerId: 1,
-          projectId,
-          items: result.unhandledItems,
-          totalGlobal: totalPrompts,
-          onProgress,
-          onImageGenerated: (img) => {
-            completedGlobal++;
-            if (onImageGenerated) onImageGenerated(img);
-          },
-          targetUrl
-        });
-      }
-
       return result;
     })();
 
@@ -1044,7 +1027,40 @@ async function runPlaywrightBatch({
   }
 
   try {
-    await Promise.allSettled(promises);
+    const results = await Promise.allSettled(promises);
+
+    // If any worker couldn't log in or failed, execute its unhandled items on Worker #1 SEQUENTIALLY
+    // (Never run concurrently on the same worker to prevent race conditions & duplicate images!)
+    const pendingFallback = [];
+    for (const res of results) {
+      if (res.status === 'fulfilled' && res.value && res.value.unhandledItems && res.value.unhandledItems.length > 0 && res.value.workerId !== 1) {
+        pendingFallback.push(...res.value.unhandledItems);
+      }
+    }
+
+    if (pendingFallback.length > 0) {
+      console.warn(`[Playwright Orchestrator] 🔄 Re-routing ${pendingFallback.length} unhandled scenes to Worker #1 (executing sequentially)...`);
+      if (onProgress) {
+        onProgress({
+          workerId: 1,
+          status: 'running_fallback',
+          message: `Worker #1 executing remaining ${pendingFallback.length} fallback scenes sequentially...`
+        });
+      }
+      await runSingleWorker({
+        workerId: 1,
+        projectId,
+        items: pendingFallback,
+        totalGlobal: totalPrompts,
+        onProgress,
+        onImageGenerated: (img) => {
+          completedGlobal++;
+          if (onImageGenerated) onImageGenerated(img);
+        },
+        targetUrl
+      });
+    }
+
     console.log(`[Playwright Orchestrator] 🎉 Batch completed! Total: ${completedGlobal}/${totalPrompts} generated.`);
     if (onComplete) {
       onComplete({
