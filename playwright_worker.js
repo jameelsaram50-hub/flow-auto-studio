@@ -358,8 +358,16 @@ async function forceCaptureScreenshot() {
   return latestDebugState;
 }
 
-async function getLiveFrameBuffer() {
-  if (activeBrowserContext && isContextUsable(activeBrowserContext)) {
+async function getLiveFrameBuffer(workerId = 1) {
+  const targetId = Number(workerId) || 1;
+  const workerObj = activeWorkerPool.get(targetId);
+  if (workerObj && isContextUsable(workerObj.context) && workerObj.page && !workerObj.page.isClosed()) {
+    try {
+      const buffer = await workerObj.page.screenshot({ type: 'jpeg', quality: 60, timeout: 2000 });
+      return buffer;
+    } catch (e) {}
+  }
+  if (targetId === 1 && activeBrowserContext && isContextUsable(activeBrowserContext)) {
     try {
       const pages = activeBrowserContext.pages();
       if (pages.length > 0 && !pages[0].isClosed()) {

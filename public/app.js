@@ -537,6 +537,7 @@ async function fetchStatus() {
     renderLogs(data.logs || []);
     renderGallery(data.images || [], data.currentRunCount);
     renderWorkerTelemetry(data.activeRun);
+    updateWorkerCanvasTabs(data.activeRun?.workerCount || currentWorkerCount || 2);
 
     // Schedule next poll adaptively: 1000ms when active, 2500ms when idle
     const isBusy = data.activeRun?.status === 'generating' || data.activeRun?.status === 'launched' || data.activeRun?.status === 'syncing';
@@ -1038,6 +1039,35 @@ fetchStatus();
 let liveStreamActive = true;
 let isFetchingFrame = false;
 
+let currentLiveWorkerId = 1;
+
+function updateWorkerCanvasTabs(workerCount) {
+  const container = document.getElementById('live-worker-switcher');
+  if (!container) return;
+  const count = Math.max(1, Math.min(Number(workerCount) || 2, 7));
+  let html = '';
+  for (let i = 1; i <= count; i++) {
+    const isActive = i === currentLiveWorkerId;
+    const bg = isActive ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.05)';
+    const col = isActive ? '#38bdf8' : '#94a3b8';
+    const border = isActive ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.1)';
+    html += `<button type="button" class="btn btn-xs live-worker-tab ${isActive ? 'active' : ''}" data-worker="${i}" style="padding: 2px 8px; font-size: 0.72rem; border-radius: 4px; background: ${bg}; color: ${col}; border: 1px solid ${border}; cursor: pointer; font-weight: ${isActive ? '600' : '500'};">Worker #${i}</button>`;
+  }
+  container.innerHTML = html;
+  container.querySelectorAll('.live-worker-tab').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wid = parseInt(btn.getAttribute('data-worker'), 10) || 1;
+      currentLiveWorkerId = wid;
+      updateWorkerCanvasTabs(count);
+      const chromeOverlay = document.getElementById('chrome-view-overlay');
+      if (chromeOverlay) chromeOverlay.textContent = `Google Flow Canvas — Worker #${wid}`;
+      const chromeStatus = document.getElementById('chrome-view-status');
+      if (chromeStatus) chromeStatus.textContent = `● Live Stream (W#${wid})`;
+    });
+  });
+}
+
 function initLiveChromeStream() {
   const chromeImg = document.getElementById('chrome-live-img');
   const chromeStatus = document.getElementById('chrome-view-status');
@@ -1079,13 +1109,13 @@ function initLiveChromeStream() {
       chromeImg.src = offscreen.src;
       isFetchingFrame = false;
       if (chromeStatus) {
-        chromeStatus.textContent = '● Live Video Stream';
+        chromeStatus.textContent = `● Live Stream (W#${currentLiveWorkerId})`;
         chromeStatus.style.background = 'rgba(34, 197, 94, 0.2)';
         chromeStatus.style.color = '#4ade80';
         chromeStatus.style.borderColor = 'rgba(34, 197, 94, 0.4)';
       }
       if (chromeOverlay) {
-        chromeOverlay.textContent = 'Google Flow Canvas Live';
+        chromeOverlay.textContent = `Google Flow Canvas (Worker #${currentLiveWorkerId})`;
         chromeOverlay.style.display = 'block';
       }
       // Rapid frame refresh (~350ms) gives smooth, video-like visual feed
@@ -1095,14 +1125,14 @@ function initLiveChromeStream() {
     offscreen.onerror = () => {
       isFetchingFrame = false;
       if (chromeStatus) {
-        chromeStatus.textContent = 'Chrome Standby';
+        chromeStatus.textContent = `Worker #${currentLiveWorkerId} Standby`;
         chromeStatus.style.background = 'rgba(148, 163, 184, 0.15)';
         chromeStatus.style.color = '#94a3b8';
       }
       setTimeout(fetchNextFrame, 1500);
     };
 
-    offscreen.src = `/api/debug/live-frame.jpg?t=${Date.now()}`;
+    offscreen.src = `/api/debug/live-frame.jpg?workerId=${currentLiveWorkerId}&t=${Date.now()}`;
   }
 
   fetchNextFrame();
@@ -1110,4 +1140,5 @@ function initLiveChromeStream() {
 
 // Start continuous live stream
 initLiveChromeStream();
+updateWorkerCanvasTabs(2);
 

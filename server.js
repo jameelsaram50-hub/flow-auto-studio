@@ -983,6 +983,7 @@ app.post('/api/focus-chrome', async (req, res) => {
 
 // API: Continuous Real-Time Live Frame (in-memory buffer, zero disk I/O, ultra-low latency)
 app.get('/api/debug/live-frame.jpg', async (req, res) => {
+  const workerId = parseInt(req.query.workerId || req.query.worker, 10) || 1;
   res.set({
     'Content-Type': 'image/jpeg',
     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -992,7 +993,7 @@ app.get('/api/debug/live-frame.jpg', async (req, res) => {
 
   try {
     if (typeof getLiveFrameBuffer === 'function') {
-      const buf = await getLiveFrameBuffer();
+      const buf = await getLiveFrameBuffer(workerId);
       if (buf && buf.length > 0) {
         return res.send(buf);
       }

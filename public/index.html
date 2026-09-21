@@ -232,7 +232,11 @@
         <div class="chrome-view-header">
           <div class="chrome-view-title-group">
             <span class="live-recording-dot"></span>
-            <h4>🖥️ Live Chrome Browser Canvas (Google Flow)</h4>
+            <h4>🖥️ Live Chrome Canvas</h4>
+            <div id="live-worker-switcher" style="display: inline-flex; align-items: center; gap: 4px; margin-left: 8px;">
+              <button type="button" class="btn btn-xs live-worker-tab active" data-worker="1" style="padding: 2px 8px; font-size: 0.72rem; border-radius: 4px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); cursor: pointer; font-weight: 600;">Worker #1</button>
+              <button type="button" class="btn btn-xs live-worker-tab" data-worker="2" style="padding: 2px 8px; font-size: 0.72rem; border-radius: 4px; background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; font-weight: 500;">Worker #2</button>
+            </div>
             <span class="chrome-view-badge" id="chrome-view-status">● Live Video Stream</span>
           </div>
           <div class="chrome-view-actions">
