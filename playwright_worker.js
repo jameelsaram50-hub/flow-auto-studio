@@ -234,8 +234,8 @@ async function configureSingleOutputMode(page) {
     console.log('[Playwright Engine] Checking output image count setting (ensuring 1x output)...');
 
     // 1. Locate the Settings trigger button at the bottom prompt bar (handles "x2", "Nano Banana", etc.)
-    const settingsBtn = page.locator('button:has-text("x2"), button:has-text("Nano Banana"), button:has-text("x1"), button[aria-label*="Settings trigger"], button:has-text("Settings trigger")').first();
-    const isSettingsVisible = await settingsBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    const settingsBtn = page.locator('button.settings-trigger-button, button:has-text("x2"), button:has-text("Nano Banana"), button:has-text("x1"), button[aria-label*="Settings trigger"], button:has-text("Settings trigger")').first();
+    const isSettingsVisible = await settingsBtn.isVisible({ timeout: 4000 }).catch(() => false);
     if (!isSettingsVisible) {
       console.warn('[Playwright Engine] Settings trigger button not found on canvas.');
       return;
@@ -269,6 +269,48 @@ async function configureSingleOutputMode(page) {
   } catch (err) {
     console.warn('[Playwright Engine] Note: Could not set 1x output automatically:', err.message);
     try { await page.keyboard.press('Escape'); } catch (e) {}
+  }
+}
+
+async function ensureDirectCanvasMode(page) {
+  try {
+    // 1. Dismiss any onboarding/feature tooltips (e.g. "Got it", "Dismiss", "You're generating with Gemini Omni Flash...")
+    const gotItBtn = page.locator('button:has-text("Got it"), button:has-text("Dismiss")').first();
+    if (await gotItBtn.isVisible({ timeout: 600 }).catch(() => false)) {
+      console.log('[Playwright Engine] Dismissing onboarding tooltip banner...');
+      await gotItBtn.click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+
+    // 2. Close Agent Session side panel ("Untitled session" panel) if open
+    const sessionCloseBtn = page.locator('button[aria-label="Close"], [role="button"][aria-label="Close"], button:has-text("close")').first();
+    if (await sessionCloseBtn.isVisible({ timeout: 600 }).catch(() => false)) {
+      console.log('[Playwright Engine] 🛑 Closing Agent Session side panel to return to direct canvas mode...');
+      await sessionCloseBtn.click().catch(() => {});
+      await page.waitForTimeout(600);
+    }
+
+    // Dismiss tooltip again if it reappeared after closing panel
+    if (await gotItBtn.isVisible({ timeout: 400 }).catch(() => false)) {
+      await gotItBtn.click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+
+    // 3. Check Agent Mode chip: if active (aria-pressed="true"), click it to turn OFF agent mode
+    const agentChip = page.locator('button.agent-mode-chip, button:has-text("Agent")').first();
+    if (await agentChip.isVisible({ timeout: 600 }).catch(() => false)) {
+      const isPressed = await agentChip.getAttribute('aria-pressed');
+      if (isPressed === 'true') {
+        console.log('[Playwright Engine] 🛑 Agent mode is ACTIVE (aria-pressed="true"). Switching to Direct Canvas Mode...');
+        await agentChip.click().catch(() => {});
+        await page.waitForTimeout(600);
+      }
+    }
+
+    // 4. Ensure output mode is 1x with Nano Banana 2 Lite
+    await configureSingleOutputMode(page);
+  } catch (err) {
+    console.warn('[Playwright Engine] ensureDirectCanvasMode warning:', err.message);
   }
 }
 
@@ -415,10 +457,10 @@ async function createNewProject(page) {
       await captureDebugView(page, 'Fresh Project Canvas Opened');
     }
 
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(2500);
+    await ensureDirectCanvasMode(page);
     const editor = page.locator('div.ProseMirror').first();
     await editor.waitFor({ state: 'visible', timeout: 25000 });
-    await configureSingleOutputMode(page);
     return editor;
   } catch (err) {
     console.warn('[Playwright Engine] Warning creating new project:', err.message);
@@ -679,6 +721,8 @@ async function runSingleWorker({
   }
 
   await page.waitForTimeout(2500);
+  await ensureDirectCanvasMode(page);
+
   let editor = page.locator('div.ProseMirror').first();
   const editorFound = await editor.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
   if (!editorFound) {
@@ -694,7 +738,6 @@ async function runSingleWorker({
     activeWorkerPool.delete(workerId);
     return { workerId, notLoggedIn: true, unhandledItems: items, completedCount: 0 };
   }
-  await configureSingleOutputMode(page);
 
   let workerCompleted = 0;
   let currentSceneRetries = 0;
@@ -719,6 +762,10 @@ async function runSingleWorker({
         message: `Chrome #${workerId}: Scene ${globalSceneIndex}/${totalGlobal} ("${prompt.slice(0, 35)}...")`
       });
     }
+
+    // Ensure direct canvas mode before each scene prompt
+    await ensureDirectCanvasMode(page);
+    editor = page.locator('div.ProseMirror').first();
 
     // 1-Shot prompt paste into ProseMirror
     await editor.click();
@@ -1112,5 +1159,7 @@ module.exports = {
   bringChromeToFront,
   ensureBrowserOpen,
   resetFlowSiteDataAndSession,
-  createNewProject
+  createNewProject,
+  ensureDirectCanvasMode,
+  configureSingleOutputMode
 };
