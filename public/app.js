@@ -1076,13 +1076,14 @@ function initLiveChromeStream() {
   const chromeStatus = document.getElementById('chrome-view-status');
   const chromeOverlay = document.getElementById('chrome-view-overlay');
   const btnOpenChrome = document.getElementById('btn-open-real-chrome');
+  const btnHideChrome = document.getElementById('btn-hide-real-chrome');
   const btnFocus = document.getElementById('btn-focus-chrome');
 
   const triggerBringChrome = async (btn) => {
     const orig = btn ? btn.innerHTML : null;
-    if (btn) btn.innerHTML = '🌐 Bringing Chrome...';
+    if (btn) btn.innerHTML = '🌐 Bringing...';
     try {
-      await fetch('/api/focus-chrome', { method: 'POST' });
+      await fetch(`/api/focus-chrome?workerId=${currentLiveWorkerId}`, { method: 'POST' });
     } catch (e) {
       console.warn('Focus chrome error:', e);
     } finally {
@@ -1092,7 +1093,22 @@ function initLiveChromeStream() {
     }
   };
 
+  const triggerHideChrome = async (btn) => {
+    const orig = btn ? btn.innerHTML : null;
+    if (btn) btn.innerHTML = '👁️ Hiding...';
+    try {
+      await fetch(`/api/hide-chrome?workerId=${currentLiveWorkerId}`, { method: 'POST' });
+    } catch (e) {
+      console.warn('Hide chrome error:', e);
+    } finally {
+      if (btn && orig) {
+        setTimeout(() => { btn.innerHTML = orig; }, 1200);
+      }
+    }
+  };
+
   btnOpenChrome?.addEventListener('click', () => triggerBringChrome(btnOpenChrome));
+  btnHideChrome?.addEventListener('click', () => triggerHideChrome(btnHideChrome));
   btnFocus?.addEventListener('click', () => triggerBringChrome(btnFocus));
 
   function fetchNextFrame() {

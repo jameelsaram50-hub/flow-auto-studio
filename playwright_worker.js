@@ -33,15 +33,83 @@ function getProfileDir(workerId = 1) {
   return dir;
 }
 
-const { spawnSync, spawn, exec } = require('child_process');
+const { spawnSync, spawn, exec, execSync } = require('child_process');
+
+const safeWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function resetCrashFlags(profileDir) {
+  if (!profileDir) return;
+  try {
+    // 1. Purge session restore files so Chrome never prompts "Restore pages?"
+    const sessionsDir = path.join(profileDir, 'Default', 'Sessions');
+    if (fs.existsSync(sessionsDir)) {
+      try {
+        fs.rmSync(sessionsDir, { recursive: true, force: true });
+      } catch (e) {}
+    }
+    const oldSessionFiles = ['Current Session', 'Current Tabs', 'Last Session', 'Last Tabs'];
+    for (const f of oldSessionFiles) {
+      const fp = path.join(profileDir, 'Default', f);
+      if (fs.existsSync(fp)) {
+        try { fs.unlinkSync(fp); } catch (e) {}
+      }
+    }
+
+    // 2. Normalize Preferences: clean exit, offscreen placement, no session restore
+    const prefPath = path.join(profileDir, 'Default', 'Preferences');
+    if (fs.existsSync(prefPath)) {
+      const d = JSON.parse(fs.readFileSync(prefPath, 'utf8'));
+      if (!d.profile) d.profile = {};
+      d.profile.exit_type = 'Normal';
+      d.profile.exited_cleanly = true;
+
+      if (!d.browser) d.browser = {};
+      d.browser.window_placement = {
+        left: -32000,
+        top: -32000,
+        right: -30720,
+        bottom: -31100,
+        maximized: false,
+        work_area_bottom: 672,
+        work_area_left: 0,
+        work_area_right: 1280,
+        work_area_top: 0
+      };
+
+      if (!d.session) d.session = {};
+      d.session.restore_on_startup = 1;
+
+      fs.writeFileSync(prefPath, JSON.stringify(d), 'utf8');
+    }
+  } catch (e) {}
+}
+
+async function applyBackgroundWindowPlacement(context, page, workerId = 1) {
+  // Headless mode: no desktop window is created by Chromium, completely silent in background
+  return;
+}
+
+function hideProcessWindows(profileDir) {
+  // Headless mode: no desktop window exists to hide
+  return;
+}
 
 function cleanupProfileLocks(profileDir) {
   if (!profileDir) return;
+
+  // Do not kill Chrome if it is actively running in the current worker pool
+  for (const [wId, wObj] of activeWorkerPool.entries()) {
+    if (wObj && wObj.profileDir === profileDir && isContextUsable(wObj.context)) {
+      return;
+    }
+  }
+
   const baseDirName = path.basename(profileDir);
 
   if (process.platform === 'win32') {
     try {
-      const psCommand = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | Select-Object -ExpandProperty ProcessId`;
+      // Use strict boundary match so .turboflow-chrome-profile does NOT match .turboflow-chrome-profile-2..7
+      const psCommand = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -and ($_.CommandLine -like '*${baseDirName}"*' -or $_.CommandLine -like '*${baseDirName} *' -or $_.CommandLine -like '*${baseDirName}/' -or $_.CommandLine -like '*${baseDirName}\\*' -or $_.CommandLine.Trim().EndsWith('${baseDirName}')) } | Select-Object -ExpandProperty ProcessId`;
       const res = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: 5000 });
       const pids = (res.stdout || '').trim().split(/\s+/).filter(Boolean);
       if (pids.length > 0) {
@@ -84,12 +152,12 @@ function openWorkerForLogin(workerId = 1) {
   // 1. If Chrome for this worker is ALREADY open and running, don't kill it! Just bring it to front.
   if (process.platform === 'win32') {
     try {
-      const psCheck = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | Select-Object -ExpandProperty ProcessId`;
+      const psCheck = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -and ($_.CommandLine -like '*${baseDirName}"*' -or $_.CommandLine -like '*${baseDirName} *' -or $_.CommandLine -like '*${baseDirName}/' -or $_.CommandLine -like '*${baseDirName}\\*' -or $_.CommandLine.Trim().EndsWith('${baseDirName}')) } | Select-Object -ExpandProperty ProcessId`;
       const checkRes = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCheck], { encoding: 'utf8', timeout: 3000 });
       const activePids = (checkRes.stdout || '').trim().split(/\s+/).filter(Boolean);
       if (activePids.length > 0) {
         console.log(`[Playwright Engine] Worker #${workerId} Chrome is already open (PIDs: ${activePids.join(', ')}). Bringing to front...`);
-        bringChromeToFront();
+        bringChromeToFront(workerId);
         return { success: true, workerId, profileDir, alreadyOpen: true };
       }
     } catch (e) {}
@@ -121,7 +189,7 @@ function openWorkerForLogin(workerId = 1) {
 
   // 4. Bring Chrome to front on Windows
   setTimeout(() => {
-    bringChromeToFront();
+    bringChromeToFront(workerId);
   }, 1000);
 
   return { success: true, workerId, profileDir };
@@ -212,13 +280,32 @@ function isContextUsable(ctx) {
   }
 }
 
-function bringChromeToFront() {
+async function bringChromeToFront(workerId = 1) {
   try {
-    if (activeBrowserContext && isContextUsable(activeBrowserContext)) {
+    const targetId = Number(workerId) || 1;
+    let targetPage = null;
+    const workerObj = activeWorkerPool.get(targetId);
+    if (workerObj && isContextUsable(workerObj.context) && workerObj.page && !workerObj.page.isClosed()) {
+      targetPage = workerObj.page;
+    } else if (activeBrowserContext && isContextUsable(activeBrowserContext)) {
       const pages = activeBrowserContext.pages();
       if (pages.length > 0 && !pages[0].isClosed()) {
-        pages[0].bringToFront().catch(() => {});
+        targetPage = pages[0];
       }
+    }
+
+    if (targetPage) {
+      try {
+        const session = await targetPage.context().newCDPSession(targetPage);
+        const { windowId } = await session.send('Browser.getWindowForTarget');
+        await session.send('Browser.setWindowBounds', {
+          windowId,
+          bounds: { left: 80, top: 80, width: 1280, height: 850, windowState: 'normal' }
+        });
+        await session.detach().catch(() => {});
+      } catch (e) {}
+
+      await targetPage.bringToFront().catch(() => {});
     }
   } catch (e) {}
 
@@ -227,6 +314,29 @@ function bringChromeToFront() {
       execSync('powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $ws.AppActivate(\'Flow\'); $ws.AppActivate(\'Google Chrome\')"', { stdio: 'ignore' });
     } catch (e) {}
   }
+}
+
+async function hideChromeWindow(workerId = 1) {
+  try {
+    const targetId = Number(workerId) || 1;
+    let targetPage = null;
+    let targetContext = null;
+    const workerObj = activeWorkerPool.get(targetId);
+    if (workerObj && isContextUsable(workerObj.context) && workerObj.page && !workerObj.page.isClosed()) {
+      targetPage = workerObj.page;
+      targetContext = workerObj.context;
+    } else if (activeBrowserContext && isContextUsable(activeBrowserContext)) {
+      targetContext = activeBrowserContext;
+      const pages = activeBrowserContext.pages();
+      if (pages.length > 0 && !pages[0].isClosed()) {
+        targetPage = pages[0];
+      }
+    }
+
+    if (targetContext && targetPage) {
+      await applyBackgroundWindowPlacement(targetContext, targetPage, targetId);
+    }
+  } catch (e) {}
 }
 
 async function configureSingleOutputMode(page) {
@@ -250,18 +360,18 @@ async function configureSingleOutputMode(page) {
     // 2. Open the settings overlay
     console.log('[Playwright Engine] Opening model & output count settings popover (currently: ' + currentSettingsText.replace(/\n/g, ' ') + ')...');
     await settingsBtn.click();
-    await page.waitForTimeout(700);
+    await safeWait(700);
 
     // 3. Click the "x1" radio button
     const x1Option = page.locator('button[role="radio"]:has-text("x1"), mat-button-toggle:has-text("x1") button, button:has-text("x1")').first();
     await x1Option.waitFor({ state: 'visible', timeout: 5000 });
     await x1Option.click();
     console.log('[Playwright Engine] ✅ Successfully switched to 1x image output mode!');
-    await page.waitForTimeout(500);
+    await safeWait(500);
 
     // 4. Close the settings popover with Escape
     await page.keyboard.press('Escape').catch(() => {});
-    await page.waitForTimeout(300);
+    await safeWait(300);
 
     // Verify
     const updatedText = await settingsBtn.innerText().catch(() => '');
@@ -279,7 +389,7 @@ async function ensureDirectCanvasMode(page) {
     if (await gotItBtn.isVisible({ timeout: 600 }).catch(() => false)) {
       console.log('[Playwright Engine] Dismissing onboarding tooltip banner...');
       await gotItBtn.click().catch(() => {});
-      await page.waitForTimeout(300);
+      await safeWait(300);
     }
 
     // 2. Close Agent Session side panel ("Untitled session" panel) if open
@@ -287,13 +397,13 @@ async function ensureDirectCanvasMode(page) {
     if (await sessionCloseBtn.isVisible({ timeout: 600 }).catch(() => false)) {
       console.log('[Playwright Engine] 🛑 Closing Agent Session side panel to return to direct canvas mode...');
       await sessionCloseBtn.click().catch(() => {});
-      await page.waitForTimeout(600);
+      await safeWait(600);
     }
 
     // Dismiss tooltip again if it reappeared after closing panel
     if (await gotItBtn.isVisible({ timeout: 400 }).catch(() => false)) {
       await gotItBtn.click().catch(() => {});
-      await page.waitForTimeout(300);
+      await safeWait(300);
     }
 
     // 3. Check Agent Mode chip: if active (aria-pressed="true", aria-checked="true", or selected/active class), click it to turn OFF agent mode
@@ -306,7 +416,7 @@ async function ensureDirectCanvasMode(page) {
       if (isAgentActive) {
         console.log('[Playwright Engine] 🛑 Agent mode is ACTIVE. Switching to Direct Canvas Mode...');
         await agentChip.click().catch(() => {});
-        await page.waitForTimeout(600);
+        await safeWait(600);
       }
     }
 
@@ -443,24 +553,22 @@ async function createNewProject(page) {
   console.log('[Playwright Engine] 🆕 Opening brand new project canvas in Google Flow...');
   try {
     await page.goto('https://flow.google.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-    bringChromeToFront();
-    await page.waitForTimeout(3000);
+    await safeWait(3000);
 
     const newBtn = page.locator('button.new-project-button, button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
     if (await newBtn.isVisible({ timeout: 15000 }).catch(() => false)) {
       const box = await newBtn.boundingBox().catch(() => null);
       if (box) {
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
-        await page.waitForTimeout(150);
+        await safeWait(150);
       }
       await newBtn.click();
       await page.waitForURL('**/project/**', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
       console.log('[Playwright Engine] ✅ Fresh canvas project opened:', page.url());
-      bringChromeToFront();
       await captureDebugView(page, 'Fresh Project Canvas Opened');
     }
 
-    await page.waitForTimeout(2500);
+    await safeWait(2500);
     await ensureDirectCanvasMode(page);
     const editor = page.locator('div.ProseMirror').first();
     await editor.waitFor({ state: 'visible', timeout: 25000 });
@@ -526,29 +634,37 @@ async function checkUnusualActivity(page) {
 
 async function ensureBrowserOpen() {
   if (isContextUsable(activeBrowserContext)) {
-    bringChromeToFront();
     return activeBrowserContext;
   }
 
   const chromeExe = findChromePath();
   const profileDir = getProfileDir();
   cleanupProfileLocks(profileDir);
+  resetCrashFlags(profileDir);
 
   try {
     const context = await chromium.launchPersistentContext(profileDir, {
       executablePath: chromeExe,
-      headless: false,
-      viewport: null,
-      ignoreDefaultArgs: ['--enable-automation'],
+      headless: true,
+      viewport: { width: 1280, height: 900 },
+      ignoreDefaultArgs: ['--enable-automation', '--no-sandbox'],
       args: [
         '--disable-blink-features=AutomationControlled',
         '--no-first-run',
         '--no-default-browser-check',
-        '--start-maximized',
+        '--window-position=-32000,-32000',
+        '--window-size=1280,900',
         '--disable-infobars',
+        '--hide-crash-restore-bubble',
+        '--disable-session-crashed-bubble',
+        '--noerrdialogs',
+        '--disable-component-update',
+        '--disable-notifications',
         '--lang=en-US,en'
       ]
     });
+
+    hideProcessWindows(profileDir);
 
     activeBrowserContext = context;
     latestDebugState.browserConnected = true;
@@ -561,11 +677,12 @@ async function ensureBrowserOpen() {
     });
 
     const page = context.pages()[0] || await context.newPage();
+    await applyBackgroundWindowPlacement(context, page, 1);
+
     const flowUrl = 'https://flow.google.com/';
     if (!page.url() || page.url() === 'about:blank') {
       page.goto(flowUrl).catch(() => {});
     }
-    bringChromeToFront();
     return activeBrowserContext;
   } catch (err) {
     console.error('[Playwright Engine] ensureBrowserOpen error:', err);
@@ -584,26 +701,32 @@ async function launchWorkerContext(workerId = 1) {
   const chromeExe = findChromePath();
   const profileDir = getProfileDir(workerId);
   cleanupProfileLocks(profileDir);
+  resetCrashFlags(profileDir);
 
-  const xOffset = ((workerId - 1) % 4) * 70;
-  const yOffset = Math.floor((workerId - 1) / 4) * 70;
-
-  console.log(`[Playwright Engine] 🚀 Launching Chrome Worker #${workerId} (Profile: ${profileDir})...`);
+  console.log(`[Playwright Engine] 🚀 Launching Chrome Worker #${workerId} (Profile: ${profileDir}) [100% Background Live Canvas Mode]...`);
 
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: chromeExe,
-    headless: false,
-    viewport: null,
-    ignoreDefaultArgs: ['--enable-automation'],
+    headless: true,
+    viewport: { width: 1280, height: 900 },
+    ignoreDefaultArgs: ['--enable-automation', '--no-sandbox'],
     args: [
       '--disable-blink-features=AutomationControlled',
       '--no-first-run',
       '--no-default-browser-check',
-      `--window-position=${xOffset},${yOffset}`,
+      '--window-position=-32000,-32000',
+      '--window-size=1280,900',
       '--disable-infobars',
+      '--hide-crash-restore-bubble',
+      '--disable-session-crashed-bubble',
+      '--noerrdialogs',
+      '--disable-component-update',
+      '--disable-notifications',
       '--lang=en-US,en'
     ]
   });
+
+  hideProcessWindows(profileDir);
 
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
@@ -613,6 +736,8 @@ async function launchWorkerContext(workerId = 1) {
   });
 
   const page = context.pages()[0] || await context.newPage();
+  await applyBackgroundWindowPlacement(context, page, workerId);
+
   const workerObj = {
     workerId,
     context,
@@ -639,8 +764,8 @@ async function runSingleWorker({
   targetUrl
 }) {
   console.log(`[Worker #${workerId}] 🚀 Starting ${items.length} assigned scenes (total global: ${totalGlobal})`);
-  const workerObj = await launchWorkerContext(workerId);
-  const page = workerObj.page;
+  let workerObj = await launchWorkerContext(workerId);
+  let page = workerObj.page;
   const outDir = getDownloadsDir();
 
   const generatedImageUrls = [];
@@ -668,7 +793,7 @@ async function runSingleWorker({
   const flowUrl = targetUrl || 'https://flow.google.com/';
   if (!page.url().includes('/project/')) {
     await page.goto(flowUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(2500);
+    await safeWait(2500);
 
     // 1. Check if user is redirected to Google login
     const curUrl = page.url();
@@ -696,7 +821,7 @@ async function runSingleWorker({
       if (await createWithFlowBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
         console.log(`[Worker #${workerId}] Landing page detected (/about). Clicking "Create with Google Flow"...`);
         await createWithFlowBtn.click();
-        await page.waitForTimeout(3000);
+        await safeWait(3000);
       }
     }
 
@@ -734,7 +859,7 @@ async function runSingleWorker({
     }
   }
 
-  await page.waitForTimeout(2500);
+  await safeWait(2500);
   await ensureDirectCanvasMode(page);
 
   let editor = page.locator('div.ProseMirror').first();
@@ -758,6 +883,11 @@ async function runSingleWorker({
   const unhandledItems = [];
 
   for (let idx = 0; idx < items.length; idx++) {
+    if (!isJobRunning) {
+      console.log(`[Worker #${workerId}] Generation stopped. Exiting scene loop.`);
+      break;
+    }
+
     const item = items[idx];
     const prompt = item.prompt;
     const globalSceneIndex = item.globalIndex;
@@ -778,204 +908,232 @@ async function runSingleWorker({
       });
     }
 
-    // Ensure direct canvas mode before each scene prompt
-    await ensureDirectCanvasMode(page);
-    editor = page.locator('div.ProseMirror').first();
-
-    // 1-Shot prompt paste into ProseMirror
-    await editor.click();
-    await page.waitForTimeout(120);
-    await page.keyboard.press('Control+A');
-    await page.waitForTimeout(60);
-    await page.keyboard.insertText(prompt);
-    await page.waitForTimeout(200);
-
-    await page.evaluate((txt) => {
-      const el = document.querySelector('div.ProseMirror');
-      if (!el) return;
-      const cur = (el.innerText || el.textContent || '').trim();
-      if (!cur || cur.length < 5) {
-        el.focus();
-        document.execCommand('selectAll', false, null);
-        document.execCommand('insertText', false, txt);
-      }
-    }, prompt);
-
-    await page.waitForTimeout(300);
-
-    const baselineImages = await page.$$eval('img', els => els
-      .filter(e => (e.alt && e.alt.includes("user's image")) || (e.src && e.src.includes('/asb/')))
-      .map(e => e.src)
-    ).catch(() => []);
-    const networkStartIndex = generatedImageUrls.length;
-
-    // Click Generate
-    const genBtn = page.locator('button[aria-label="Start generation"], button.generate-icon-button').first();
-    await genBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await genBtn.click();
-
-    // Wait for image with unusual activity detection
-    const genStartTime = Date.now();
-    let generatedUrl = null;
-    let unusualDetected = false;
-
-    await page.waitForTimeout(3000);
-
-    while (Date.now() - genStartTime < 75000) {
-      await page.waitForTimeout(2000);
-
-      const isUnusual = await checkUnusualActivity(page);
-      if (isUnusual) {
-        console.warn(`[Worker #${workerId}] ⚠️ Google Flow 'Unusual Activity' detected during scene ${globalSceneIndex}!`);
-        unusualDetected = true;
-        break;
+    try {
+      // If page or context disconnected, attempt transparent recovery
+      if (!page || page.isClosed() || !workerObj.context || !isContextUsable(workerObj.context)) {
+        console.warn(`[Worker #${workerId}] ⚠️ Browser page closed. Relaunching worker context...`);
+        try {
+          const revived = await launchWorkerContext(workerId);
+          workerObj = revived;
+          page = revived.page;
+          await page.goto(flowUrl, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+          await safeWait(2500);
+          await ensureDirectCanvasMode(page);
+        } catch (revErr) {
+          console.warn(`[Worker #${workerId}] ⚠️ Could not relaunch worker:`, revErr.message);
+          unhandledItems.push(item);
+          continue;
+        }
       }
 
-      // Check network images
-      const newlyArrivedUrls = generatedImageUrls.slice(networkStartIndex);
-      const trulyNewNetworkUrls = newlyArrivedUrls.filter(u => !baselineImages.includes(u));
-      if (trulyNewNetworkUrls.length > 0) {
-        generatedUrl = trulyNewNetworkUrls[trulyNewNetworkUrls.length - 1];
-        break;
-      }
+      // Ensure direct canvas mode before each scene prompt
+      await ensureDirectCanvasMode(page);
+      editor = page.locator('div.ProseMirror').first();
 
-      // Check canvas img DOM
-      const currentTileImages = await page.$$eval('img', els => els
+      // 1-Shot prompt paste into ProseMirror
+      await editor.click();
+      await safeWait(120);
+      await page.keyboard.press('Control+A');
+      await safeWait(60);
+      await page.keyboard.insertText(prompt);
+      await safeWait(200);
+
+      await page.evaluate((txt) => {
+        const el = document.querySelector('div.ProseMirror');
+        if (!el) return;
+        const cur = (el.innerText || el.textContent || '').trim();
+        if (!cur || cur.length < 5) {
+          el.focus();
+          document.execCommand('selectAll', false, null);
+          document.execCommand('insertText', false, txt);
+        }
+      }, prompt);
+
+      await safeWait(300);
+
+      const baselineImages = await page.$$eval('img', els => els
         .filter(e => (e.alt && e.alt.includes("user's image")) || (e.src && e.src.includes('/asb/')))
         .map(e => e.src)
       ).catch(() => []);
-      const newImages = currentTileImages.filter(src => !baselineImages.includes(src));
-      if (newImages.length > 0) {
-        generatedUrl = newImages[newImages.length - 1];
-        break;
+      const networkStartIndex = generatedImageUrls.length;
+
+      // Click Generate
+      const genBtn = page.locator('button[aria-label="Start generation"], button.generate-icon-button').first();
+      await genBtn.waitFor({ state: 'visible', timeout: 10000 });
+      await genBtn.click();
+
+      // Wait for image with unusual activity detection
+      const genStartTime = Date.now();
+      let generatedUrl = null;
+      let unusualDetected = false;
+
+      await safeWait(3000);
+
+      while (Date.now() - genStartTime < 75000) {
+        if (!isJobRunning) break;
+        await safeWait(2000);
+
+        if (!page || page.isClosed()) break;
+
+        const isUnusual = await checkUnusualActivity(page);
+        if (isUnusual) {
+          console.warn(`[Worker #${workerId}] ⚠️ Google Flow 'Unusual Activity' detected during scene ${globalSceneIndex}!`);
+          unusualDetected = true;
+          break;
+        }
+
+        // Check network images
+        const newlyArrivedUrls = generatedImageUrls.slice(networkStartIndex);
+        const trulyNewNetworkUrls = newlyArrivedUrls.filter(u => !baselineImages.includes(u));
+        if (trulyNewNetworkUrls.length > 0) {
+          generatedUrl = trulyNewNetworkUrls[trulyNewNetworkUrls.length - 1];
+          break;
+        }
+
+        // Check canvas img DOM
+        const currentTileImages = await page.$$eval('img', els => els
+          .filter(e => (e.alt && e.alt.includes("user's image")) || (e.src && e.src.includes('/asb/')))
+          .map(e => e.src)
+        ).catch(() => []);
+        const newImages = currentTileImages.filter(src => !baselineImages.includes(src));
+        if (newImages.length > 0) {
+          generatedUrl = newImages[newImages.length - 1];
+          break;
+        }
       }
-    }
 
-    if (!generatedUrl && !unusualDetected) {
-      unusualDetected = await checkUnusualActivity(page);
-    }
-
-    // Auto-Recovery pipeline
-    if (unusualDetected) {
-      currentSceneRetries++;
-      console.warn(`[Worker #${workerId}] 🔄 Auto-Recovery attempt ${currentSceneRetries} for scene ${globalSceneIndex}...`);
-      await page.keyboard.press('Escape').catch(() => {});
-
-      if (currentSceneRetries === 1) {
-        if (onProgress) {
-          onProgress({
-            workerId,
-            status: 'unusual_recovery',
-            sceneIndex: globalSceneIndex,
-            message: `Chrome #${workerId}: Unusual activity detected. Switching to fresh canvas project...`
-          });
-        }
-        await page.waitForTimeout(5000);
-        editor = await createNewProject(page);
-        idx--; // Retry same scene
-        continue;
-      } else if (currentSceneRetries === 2) {
-        if (onProgress) {
-          onProgress({
-            workerId,
-            status: 'clearing_cache',
-            sceneIndex: globalSceneIndex,
-            message: `Chrome #${workerId}: Clearing Flow cache and reloading...`
-          });
-        }
-        await clearFlowSiteData(page);
-        await page.waitForTimeout(4000);
-        editor = await createNewProject(page);
-        idx--; // Retry same scene
-        continue;
-      } else {
-        console.error(`[Worker #${workerId}] ❌ Scene ${globalSceneIndex} failed after 2 retries.`);
-        currentSceneRetries = 0;
-        unhandledItems.push(item);
-        continue;
+      if (!generatedUrl && !unusualDetected && page && !page.isClosed()) {
+        unusualDetected = await checkUnusualActivity(page);
       }
-    }
 
-    currentSceneRetries = 0;
+      // Auto-Recovery pipeline
+      if (unusualDetected) {
+        currentSceneRetries++;
+        console.warn(`[Worker #${workerId}] 🔄 Auto-Recovery attempt ${currentSceneRetries} for scene ${globalSceneIndex}...`);
+        await page.keyboard.press('Escape').catch(() => {});
 
-    // Save image to Downloads/turboflow
-    const safeProjectName = projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const padIdx = String(globalSceneIndex).padStart(3, '0');
-    const filename = `${safeProjectName}_scene_${padIdx}.png`;
-    const savePath = path.join(outDir, filename);
-
-    let savedOk = false;
-    if (generatedUrl) {
-      try {
-        const base64 = await page.evaluate(async (url) => {
-          const resp = await fetch(url);
-          const blob = await resp.blob();
-          return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.readAsDataURL(blob);
-          });
-        }, generatedUrl);
-
-        if (base64 && base64.includes(',')) {
-          const buffer = Buffer.from(base64.split(',')[1], 'base64');
-          fs.writeFileSync(savePath, buffer);
-          savedOk = true;
-          console.log(`[Worker #${workerId}] ✅ Saved scene ${globalSceneIndex} (${buffer.length} bytes) to: ${savePath}`);
+        if (currentSceneRetries === 1) {
+          if (onProgress) {
+            onProgress({
+              workerId,
+              status: 'unusual_recovery',
+              sceneIndex: globalSceneIndex,
+              message: `Chrome #${workerId}: Unusual activity detected. Switching to fresh canvas project...`
+            });
+          }
+          await safeWait(5000);
+          editor = await createNewProject(page);
+          idx--; // Retry same scene
+          continue;
+        } else if (currentSceneRetries === 2) {
+          if (onProgress) {
+            onProgress({
+              workerId,
+              status: 'clearing_cache',
+              sceneIndex: globalSceneIndex,
+              message: `Chrome #${workerId}: Clearing Flow cache and reloading...`
+            });
+          }
+          await clearFlowSiteData(page);
+          await safeWait(4000);
+          editor = await createNewProject(page);
+          idx--; // Retry same scene
+          continue;
+        } else {
+          console.error(`[Worker #${workerId}] ❌ Scene ${globalSceneIndex} failed after 2 retries.`);
+          currentSceneRetries = 0;
+          unhandledItems.push(item);
+          continue;
         }
-      } catch (inPageErr) {
+      }
+
+      currentSceneRetries = 0;
+
+      // Save image to Downloads/turboflow
+      const safeProjectName = projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const padIdx = String(globalSceneIndex).padStart(3, '0');
+      const filename = `${safeProjectName}_scene_${padIdx}.png`;
+      const savePath = path.join(outDir, filename);
+
+      let savedOk = false;
+      if (generatedUrl && page && !page.isClosed()) {
         try {
-          await downloadFile(generatedUrl, savePath);
+          const base64 = await page.evaluate(async (url) => {
+            const resp = await fetch(url);
+            const blob = await resp.blob();
+            return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.readAsDataURL(blob);
+            });
+          }, generatedUrl);
+
+          if (base64 && base64.includes(',')) {
+            const buffer = Buffer.from(base64.split(',')[1], 'base64');
+            fs.writeFileSync(savePath, buffer);
+            savedOk = true;
+            console.log(`[Worker #${workerId}] ✅ Saved scene ${globalSceneIndex} (${buffer.length} bytes) to: ${savePath}`);
+          }
+        } catch (inPageErr) {
+          try {
+            await downloadFile(generatedUrl, savePath);
+            savedOk = true;
+          } catch (e) {}
+        }
+      }
+
+      if (!savedOk && page && !page.isClosed()) {
+        const imageElement = page.locator('div.container:has(img[alt*="user\'s image"]), img[alt*="user\'s image"], img[src*="/asb/"]').last();
+        if (await imageElement.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await imageElement.screenshot({ path: savePath });
           savedOk = true;
-        } catch (e) {}
+        }
       }
-    }
 
-    if (!savedOk) {
-      const imageElement = page.locator('div.container:has(img[alt*="user\'s image"]), img[alt*="user\'s image"], img[src*="/asb/"]').last();
-      if (await imageElement.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await imageElement.screenshot({ path: savePath });
-        savedOk = true;
+      if (!savedOk) {
+        console.warn(`[Worker #${workerId}] ⚠️ Image for scene ${globalSceneIndex} could not be saved.`);
+        unhandledItems.push(item);
+      } else {
+        workerCompleted++;
       }
-    }
 
-    if (!savedOk) {
-      console.warn(`[Worker #${workerId}] ⚠️ Image for scene ${globalSceneIndex} could not be saved.`);
+      const chromeScreenshotUrl = await captureSceneScreenshot(page, globalSceneIndex, `Worker #${workerId}: Scene ${globalSceneIndex} saved`);
+      if (workerId === 1) {
+        await captureDebugView(page, `Chrome #1: Scene ${globalSceneIndex} saved`);
+      }
+
+      if (onImageGenerated && savedOk) {
+        onImageGenerated({
+          workerId,
+          sceneIndex: globalSceneIndex,
+          localIndex: localSceneIndex,
+          totalScenes: totalGlobal,
+          filename,
+          localPath: savePath,
+          url: `/api/images/${encodeURIComponent(filename)}`,
+          chromeScreenshotUrl
+        });
+      }
+
+      // Proactive canvas rotation every 10 scenes completed by this worker
+      if (workerCompleted > 0 && workerCompleted % 10 === 0 && localSceneIndex < items.length) {
+        console.log(`[Worker #${workerId}] 🔄 Proactive Canvas Rotation: 10 scenes completed on current canvas...`);
+        editor = await createNewProject(page);
+        await safeWait(2000);
+      }
+
+      // Cooldown pause between scenes
+      if (localSceneIndex < items.length && isJobRunning) {
+        const pauseMs = 12000 + Math.floor(Math.random() * 5000);
+        console.log(`[Worker #${workerId}] Cooldown pause (${(pauseMs / 1000).toFixed(1)}s)...`);
+        await safeWait(pauseMs);
+      }
+    } catch (sceneErr) {
+      console.warn(`[Worker #${workerId}] ⚠️ Scene ${globalSceneIndex} error:`, sceneErr.message);
+      if (sceneErr.message && (sceneErr.message.includes('closed') || sceneErr.message.includes('Target page'))) {
+        activeWorkerPool.delete(workerId);
+      }
       unhandledItems.push(item);
-    } else {
-      workerCompleted++;
-    }
-
-    const chromeScreenshotUrl = await captureSceneScreenshot(page, globalSceneIndex, `Worker #${workerId}: Scene ${globalSceneIndex} saved`);
-    if (workerId === 1) {
-      await captureDebugView(page, `Chrome #1: Scene ${globalSceneIndex} saved`);
-    }
-
-    if (onImageGenerated && savedOk) {
-      onImageGenerated({
-        workerId,
-        sceneIndex: globalSceneIndex,
-        localIndex: localSceneIndex,
-        totalScenes: totalGlobal,
-        filename,
-        localPath: savePath,
-        url: `/api/images/${encodeURIComponent(filename)}`,
-        chromeScreenshotUrl
-      });
-    }
-
-    // Proactive canvas rotation every 10 scenes completed by this worker
-    if (workerCompleted > 0 && workerCompleted % 10 === 0 && localSceneIndex < items.length) {
-      console.log(`[Worker #${workerId}] 🔄 Proactive Canvas Rotation: 10 scenes completed on current canvas...`);
-      editor = await createNewProject(page);
-      await page.waitForTimeout(2000);
-    }
-
-    // Cooldown pause between scenes
-    if (localSceneIndex < items.length) {
-      const pauseMs = 12000 + Math.floor(Math.random() * 5000);
-      console.log(`[Worker #${workerId}] Cooldown pause (${(pauseMs / 1000).toFixed(1)}s)...`);
-      await page.waitForTimeout(pauseMs);
     }
   }
 
@@ -1008,10 +1166,6 @@ async function runPlaywrightBatch({
 
   console.log(`[Playwright Orchestrator] 🚀 Planning ${numWorkers} parallel Chrome worker(s) for ${totalPrompts} prompts (Requested: ${requestedWorkers} workers)...`);
 
-  // Sequential Contiguous Chunking (NOT modulo):
-  // e.g. 5 prompts, 5 workers -> [1], [2], [3], [4], [5]
-  // e.g. 7 prompts, 7 workers -> [1], [2], [3], [4], [5], [6], [7]
-  // e.g. 60 prompts, 7 workers -> contiguous distribution
   const workerBuckets = [];
   const baseSize = Math.floor(totalPrompts / numWorkers);
   const remainder = totalPrompts % numWorkers;
@@ -1079,7 +1233,7 @@ async function runPlaywrightBatch({
     const promise = (async () => {
       if (staggerMs > 0) {
         console.log(`[Playwright Orchestrator] Staggering Worker #${workerId} by ${staggerMs / 1000}s...`);
-        await new Promise(r => setTimeout(r, staggerMs));
+        await safeWait(staggerMs);
       }
 
       const result = await runSingleWorker({
@@ -1105,7 +1259,6 @@ async function runPlaywrightBatch({
     const results = await Promise.allSettled(promises);
 
     // If any worker couldn't log in or failed, execute its unhandled items on Worker #1 SEQUENTIALLY
-    // (Never run concurrently on the same worker to prevent race conditions & duplicate images!)
     const pendingFallback = [];
     for (let idx = 0; idx < results.length; idx++) {
       const res = results[idx];
@@ -1118,7 +1271,7 @@ async function runPlaywrightBatch({
       }
     }
 
-    if (pendingFallback.length > 0) {
+    if (pendingFallback.length > 0 && isJobRunning) {
       console.warn(`[Playwright Orchestrator] 🔄 Re-routing ${pendingFallback.length} unhandled scenes to Worker #1 (executing sequentially)...`);
       if (onProgress) {
         onProgress({
@@ -1127,18 +1280,22 @@ async function runPlaywrightBatch({
           message: `Worker #1 executing remaining ${pendingFallback.length} fallback scenes sequentially...`
         });
       }
-      await runSingleWorker({
-        workerId: 1,
-        projectId,
-        items: pendingFallback,
-        totalGlobal: totalPrompts,
-        onProgress,
-        onImageGenerated: (img) => {
-          completedGlobal++;
-          if (onImageGenerated) onImageGenerated(img);
-        },
-        targetUrl
-      });
+      try {
+        await runSingleWorker({
+          workerId: 1,
+          projectId,
+          items: pendingFallback,
+          totalGlobal: totalPrompts,
+          onProgress,
+          onImageGenerated: (img) => {
+            completedGlobal++;
+            if (onImageGenerated) onImageGenerated(img);
+          },
+          targetUrl
+        });
+      } catch (fallbackErr) {
+        console.warn(`[Playwright Orchestrator] Fallback execution warning:`, fallbackErr.message);
+      }
     }
 
     console.log(`[Playwright Orchestrator] 🎉 Batch completed! Total: ${completedGlobal}/${totalPrompts} generated.`);
@@ -1182,6 +1339,7 @@ module.exports = {
   forceCaptureScreenshot,
   getLiveFrameBuffer,
   bringChromeToFront,
+  hideChromeWindow,
   ensureBrowserOpen,
   resetFlowSiteDataAndSession,
   createNewProject,

@@ -11,6 +11,7 @@ const {
   forceCaptureScreenshot,
   getLiveFrameBuffer,
   bringChromeToFront,
+  hideChromeWindow,
   ensureBrowserOpen,
   resetFlowSiteDataAndSession,
   openWorkerForLogin,
@@ -400,43 +401,13 @@ function killChromeProcesses(callback) {
   });
 }
 
-// Auto launch Chrome with Google Flow + TurboFlow extension
+// Auto launch Chrome in silent background headless mode via Playwright
 function launchChrome() {
-  const chromeExe = findChromeExecutable();
-  const profileDir = getDedicatedProfileDir();
-  const extDir = getCleanExtensionDir();
-  const flowUrl = getFlowLaunchUrl();
-
-  console.log(`[Launcher] Launching Chrome executable: ${chromeExe}`);
-  console.log(`[Launcher] Clean Extension path: ${extDir}`);
-  console.log(`[Launcher] Target Flow URL: ${flowUrl}`);
-
-  function doSpawn() {
-    // Clear Chrome junk FIRST (keeps cookies/login intact)
-    clearChromeJunk(profileDir);
-
-    try {
-      const mainArgs = [
-        `--user-data-dir=${profileDir}`,
-        '--profile-directory=Default',
-        `--load-extension=${extDir}`,
-        `--disable-extensions-except=${extDir}`,
-        '--no-first-run',
-        '--no-default-browser-check',
-        flowUrl,
-      ];
-      const mainChild = spawn(chromeExe, mainArgs, { detached: true, stdio: 'ignore' });
-      mainChild.unref();
-      console.log(`[Launcher] Chrome spawned (PID: ${mainChild.pid}) opening: ${flowUrl}`);
-      addLog('Launcher', `🚀 Chrome launched with project canvas: ${flowUrl}`, 'success');
-    } catch (err) {
-      console.error('[Launcher] Could not spawn Chrome:', err);
-      addLog('Launcher', `❌ Could not spawn Chrome: ${err.message}`, 'error');
-    }
+  if (typeof ensureBrowserOpen === 'function') {
+    ensureBrowserOpen().catch((err) => {
+      console.error('[Launcher] ensureBrowserOpen error:', err);
+    });
   }
-
-  // Kill any existing Chrome first, then spawn fresh
-  killChromeProcesses(doSpawn);
 }
 
 // Helper to save project state to disk
@@ -974,12 +945,24 @@ app.post('/api/debug/force-capture', async (req, res) => {
 // API: Bring active Chrome window to front & focus
 app.post('/api/focus-chrome', async (req, res) => {
   try {
-    if (typeof ensureBrowserOpen === 'function') {
-      await ensureBrowserOpen();
-    } else if (typeof bringChromeToFront === 'function') {
-      bringChromeToFront();
+    const workerId = parseInt(req.query.workerId || req.body?.workerId, 10) || 1;
+    if (typeof bringChromeToFront === 'function') {
+      await bringChromeToFront(workerId);
     }
-    res.json({ success: true, message: 'Chrome window focused or launched' });
+    res.json({ success: true, message: `Chrome #${workerId} window brought to front` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API: Hide Chrome window back to offscreen (Canvas only)
+app.post('/api/hide-chrome', async (req, res) => {
+  try {
+    const workerId = parseInt(req.query.workerId || req.body?.workerId, 10) || 1;
+    if (typeof hideChromeWindow === 'function') {
+      await hideChromeWindow(workerId);
+    }
+    res.json({ success: true, message: `Chrome #${workerId} window hidden to canvas` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

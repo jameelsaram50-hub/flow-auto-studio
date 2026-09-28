@@ -127,7 +127,11 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   log('All windows closed, quitting app');
-  if (process.platform !== 'darwin') {
+  try {
     app.quit();
-  }
+  } catch (e) {}
+  setTimeout(() => {
+    process.exit(0);
+  }, 300);
 });
+
