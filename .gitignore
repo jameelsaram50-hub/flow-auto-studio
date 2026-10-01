@@ -14,14 +14,13 @@ scratch/
 flow-auto-studio.log
 
 # Temporary test projects
-data/projects/Project_*
-data/projects/LiveTest_*
-data/projects/TraceTest_*
-data/projects/TestStealthRun*
-data/projects/DeepAudit_*
-data/projects/Verification_*
+data/projects/**
+!data/projects/.gitkeep
 
 # Profiles and temporary data
+.easyaihub-chrome-profile/
+.easyaihub-session-backup/
+.easyaihub-extension/
 .turboflow-chrome-profile/
 .turboflow-session-backup/
 .turboflow-extension/

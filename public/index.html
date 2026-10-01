@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Google Flow Image Automator — TurboFlow Bridge</title>
+  <title>Easy AI Hub — Image Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -33,21 +33,21 @@
           </svg>
         </div>
         <div>
-          <h1 class="brand-title">Flow Auto Studio</h1>
-          <p class="brand-subtitle">1-Click Automated Batch Image Generator for Google Flow</p>
+          <h1 class="brand-title">Easy AI Hub</h1>
+          <p class="brand-subtitle">1-Click Automated Batch Image Generator</p>
         </div>
       </div>
 
       <div class="header-actions">
-        <button class="btn btn-sm btn-outline" id="btn-reset-studio" title="Reset Flow Auto Studio to clean initial state (preserves your Google Chrome login)" style="display: inline-flex; align-items: center; gap: 6px; border-color: rgba(248, 113, 113, 0.4); color: #f87171; background: rgba(239, 68, 68, 0.08); padding: 6px 14px; font-weight: 500;">
+        <button class="btn btn-sm btn-outline" id="btn-reset-studio" title="Reset Studio to clean initial state (preserves your saved logins)" style="display: inline-flex; align-items: center; gap: 6px; border-color: rgba(248, 113, 113, 0.4); color: #f87171; background: rgba(239, 68, 68, 0.08); padding: 6px 14px; font-weight: 500;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
           <span>Reset App</span>
         </button>
-        <button class="btn btn-sm btn-outline" id="btn-toggle-monitor" title="Toggle Live Chrome Canvas &amp; Progress Monitor" style="display: inline-flex; align-items: center; gap: 6px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+        <button class="btn btn-sm btn-outline" id="btn-toggle-monitor" title="Toggle Live Canvas &amp; Progress Monitor" style="display: inline-flex; align-items: center; gap: 6px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
           <span class="pulse-dot" style="background-color: #38bdf8; box-shadow: 0 0 8px #38bdf8; width: 8px; height: 8px;"></span>
-          <span>🖥️ Live Chrome View</span>
+          <span>🖥️ Live Canvas View</span>
         </button>
-        <button class="btn btn-secondary" id="btn-open-folder" title="Open turboflow output folder in Windows Explorer">
+        <button class="btn btn-secondary" id="btn-open-folder" title="Open output folder in Windows Explorer">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           Downloads Folder
         </button>
@@ -55,7 +55,21 @@
     </div>
   </header>
 
-  <main class="main-container">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-menu">
+        <button class="sidebar-item active" data-view="image-studio">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+          Image Studio
+        </button>
+        <button class="sidebar-item" data-view="smart-pipeline">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+          Smart Pipeline
+        </button>
+      </div>
+    </aside>
+
+  <main class="main-container" id="view-image-studio">
     <!-- Prompt Input Section -->
     <section class="card input-card">
       <div class="card-header">
@@ -85,11 +99,12 @@
           id="prompt-input"
           class="prompt-textarea"
           placeholder="Enter your image prompts here (one prompt per line)...&#10;&#10;Example:&#10;Cinematic portrait of a cyberpunk detective walking in neon rain, volumetric lighting, 8k&#10;Majestic snow leopard in the Himalayan mountain peaks at golden hour sunrise&#10;Cozy vintage coffee shop interior on a rainy autumn evening, warm amber glow"
-          rows="8"
+          rows="5"
+          style="min-height: 125px;"
           spellcheck="false"
         ></textarea>
         <div class="textarea-hint">
-          <span>💡 Tip: Each line will generate a separate image in Google Flow automatically.</span>
+          <span>💡 Tip: Each line will generate a separate image automatically.</span>
           <span id="char-counter">0 Prompts</span>
         </div>
       </div>
@@ -120,12 +135,12 @@
         <div class="quality-group-item">
           <span class="speed-title">📥 Download Mode:</span>
           <div class="speed-buttons-group">
-            <label class="speed-pill-option active" id="quality-opt-std" title="Downloads image directly without waiting for Google 2K upscaler (Saves 6-10 seconds per image!)">
+            <label class="speed-pill-option active" id="quality-opt-std" title="Downloads image directly in high resolution (fastest)">
               <input type="radio" name="imageQuality" value="standard" checked>
               <span class="pill-dot"></span>
               <span>⚡ Instant 1080p (Fastest)</span>
             </label>
-            <label class="speed-pill-option" id="quality-opt-2k" title="Runs Google 2K Upscaler before saving (+5-8 seconds per image)">
+            <label class="speed-pill-option" id="quality-opt-2k" title="Runs 2K HD Upscaler before saving (+5-8 seconds per image)">
               <input type="radio" name="imageQuality" value="2k">
               <span class="pill-dot"></span>
               <span>💎 2K Upscaled</span>
@@ -135,68 +150,79 @@
 
         <div class="workers-group-item" style="width: 100%; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-            <span class="speed-title" style="margin-bottom: 0;">🌐 Parallel Chrome Workers:</span>
+            <span class="speed-title" style="margin-bottom: 0;">🌐 Parallel Generation Channels:</span>
             <button type="button" id="btn-open-accounts-mgr" class="btn btn-xs btn-outline" style="color: #38bdf8; border-color: rgba(56,189,248,0.4); font-size: 11px; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
-              <span>🔑</span> Manage Google Accounts (1–7)
+              <span>🔑</span> Manage Account Logins (1–7)
             </button>
           </div>
           <div class="speed-buttons-group" id="worker-count-group">
-            <label class="speed-pill-option" title="1 Chrome Worker">
-              <input type="radio" name="workerCount" value="1">
+            <label class="speed-pill-option active" id="worker-opt-1" title="1 Channel (Most Stable & Safest)">
+              <input type="radio" name="workerCount" value="1" checked>
               <span class="pill-dot"></span>
-              <span>1 Worker</span>
+              <span>1 Channel (Safest)</span>
             </label>
-            <label class="speed-pill-option" title="2 Parallel Chrome Workers">
+            <label class="speed-pill-option" id="worker-opt-2" title="2 Parallel Channels">
               <input type="radio" name="workerCount" value="2">
               <span class="pill-dot"></span>
-              <span>2 Workers</span>
+              <span>2 Channels</span>
             </label>
-            <label class="speed-pill-option" title="3 Parallel Chrome Workers">
+            <label class="speed-pill-option" id="worker-opt-3" title="3 Parallel Channels">
               <input type="radio" name="workerCount" value="3">
               <span class="pill-dot"></span>
-              <span>3 Workers</span>
+              <span>3 Channels</span>
             </label>
-            <label class="speed-pill-option" title="5 Parallel Chrome Workers">
+            <label class="speed-pill-option" id="worker-opt-5" title="5 Parallel Channels">
               <input type="radio" name="workerCount" value="5">
               <span class="pill-dot"></span>
-              <span>5 Workers</span>
+              <span>5 Channels</span>
             </label>
-            <label class="speed-pill-option active" id="worker-opt-7" title="7 Parallel Chrome Workers (Maximum Speed!)">
-              <input type="radio" name="workerCount" value="7" checked>
+            <label class="speed-pill-option" id="worker-opt-7" title="7 Parallel Channels (Maximum Speed)">
+              <input type="radio" name="workerCount" value="7">
               <span class="pill-dot"></span>
-              <span>🔥 7 Chromes (7x Ultra Speed)</span>
+              <span>🔥 7 Channels (7x Ultra Speed)</span>
             </label>
           </div>
         </div>
       </div>
 
-      <!-- Main Action Section -->
-      <div class="action-footer">
-        <button id="btn-generate" class="btn btn-primary btn-hero">
-          <span class="btn-glow"></span>
-          <span class="btn-content">
-            <svg class="btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            <span class="btn-text">Generate in Google Flow</span>
-          </span>
-        </button>
-
-        <div class="quick-options">
-          <label class="toggle-control" title="Automatically opens Google Flow when clicking Generate">
-            <input type="checkbox" id="chk-auto-launch" checked>
-            <span class="toggle-slider"></span>
-            <span class="toggle-label">Auto-Launch Workers</span>
-          </label>
-
-          <button class="btn btn-ghost btn-sm" id="btn-reset-studio-main" title="Reset all inputs, memory, and state like a fresh app launch (Keeps all Chrome logins safe)" style="border-color: rgba(239,68,68,0.4); color: #f87171;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
-            🔄 Reset Studio
+      <!-- Main Action Section with Dual Dedicated Buttons -->
+      <div class="action-footer" style="display: flex; flex-direction: column; gap: 14px; align-items: stretch; margin-top: 18px;">
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <!-- Generate Button -->
+          <button id="btn-generate-playwright" class="btn btn-hero btn-hero-playwright" style="flex: 1; min-width: 250px; cursor: pointer; padding: 14px 20px;" title="Fast automated image generation with live preview">
+            <span class="btn-glow"></span>
+            <span class="btn-content">
+              <span style="font-size: 1.4rem;">⚡</span>
+              <span style="display: flex; flex-direction: column; align-items: flex-start; text-align: left; line-height: 1.2;">
+                <span class="btn-text-main" style="font-weight: 800; font-size: 1.02rem; color: #082f49; text-shadow: none;">Generate Images</span>
+                <span style="font-size: 0.68rem; font-weight: 700; color: #0c4a6e; letter-spacing: 0.03em;">⚡ FAST AUTOMATED GENERATION</span>
+              </span>
+            </span>
           </button>
+        </div>
 
-          <button class="btn btn-ghost btn-sm" id="btn-fix-unusual-quick" title="1-Click fix for Flow Unusual Activity error" style="border-color: rgba(234,179,8,0.4); color: #facc15;">
-            🧹 Clear Flow Cache
-          </button>
+        <div class="quick-options" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <label class="toggle-control" title="Automatically opens image generator when clicking Generate">
+              <input type="checkbox" id="chk-auto-launch" checked>
+              <span class="toggle-slider"></span>
+              <span class="toggle-label" style="font-size: 0.85rem; font-weight: 600;">Auto-Launch Engine</span>
+            </label>
+            <span id="active-mode-badge" style="font-size: 0.78rem; color: #4ade80; font-weight: 700; background: rgba(34, 197, 94, 0.12); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(74, 222, 128, 0.25);">
+              Active Mode: ⚡ Fast Generation
+            </span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <button class="btn btn-ghost btn-sm" id="btn-reset-studio-main" title="Reset all inputs, memory, and state (Keeps all logins safe)" style="border-color: rgba(239,68,68,0.4); color: #f87171;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+              🔄 Reset Studio
+            </button>
+
+            <button class="btn btn-ghost btn-sm" id="btn-fix-unusual-quick" title="1-Click fix to clear engine cache" style="border-color: rgba(234,179,8,0.4); color: #facc15;">
+              🧹 Clear Engine Cache
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -212,9 +238,9 @@
         </div>
         <div class="monitor-header-actions">
           <span class="run-id-tag" id="active-run-id"></span>
-          <button class="btn btn-sm" id="btn-focus-chrome" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;" title="Bring Chrome window directly to the front so you can watch Google Flow live">
+          <button class="btn btn-sm" id="btn-focus-chrome" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;" title="Bring preview window to the front">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-            <span>🌐 View Chrome Window</span>
+            <span>🌐 View Live Canvas</span>
           </button>
           <button class="btn btn-sm" id="btn-reset-session" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;" title="Reset session from zero — clears all stale logs and active runs">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
@@ -232,7 +258,7 @@
         <div class="chrome-view-header">
           <div class="chrome-view-title-group">
             <span class="live-recording-dot"></span>
-            <h4>🖥️ Live Chrome Canvas</h4>
+            <h4>🖥️ Live Canvas</h4>
             <div id="live-worker-switcher" style="display: inline-flex; align-items: center; gap: 4px; margin-left: 8px;">
               <button type="button" class="btn btn-xs live-worker-tab active" data-worker="1" style="padding: 2px 8px; font-size: 0.72rem; border-radius: 4px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); cursor: pointer; font-weight: 600;">Worker #1</button>
               <button type="button" class="btn btn-xs live-worker-tab" data-worker="2" style="padding: 2px 8px; font-size: 0.72rem; border-radius: 4px; background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; font-weight: 500;">Worker #2</button>
@@ -243,14 +269,14 @@
             <span class="badge" style="background: rgba(34,197,94,0.12); color: #4ade80; font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(74,222,128,0.25); font-weight: 600;">
               ⚡ 100% Background Automation
             </span>
-            <button type="button" class="btn btn-xs btn-ghost" id="btn-expand-chrome-view" style="color: #94a3b8; padding: 5px 12px; border-radius: 6px; cursor: pointer;" onclick="window.openPreview(document.getElementById('chrome-live-img').src, 'Live Chrome Canvas View')">
+            <button type="button" class="btn btn-xs btn-ghost" id="btn-expand-chrome-view" style="color: #94a3b8; padding: 5px 12px; border-radius: 6px; cursor: pointer;" onclick="window.openPreview(document.getElementById('chrome-live-img').src, 'Live Canvas Preview')">
               ⛶ Fullscreen Expand
             </button>
           </div>
         </div>
         <div class="chrome-view-body">
-          <img id="chrome-live-img" src="/api/debug/live-frame.jpg" alt="Live Chrome Browser View" onclick="window.openPreview(this.src, 'Live Chrome Canvas View')" />
-          <div class="chrome-view-overlay" id="chrome-view-overlay">Google Flow Canvas Live</div>
+          <img id="chrome-live-img" src="/debug/placeholder.svg" alt="Live Canvas View" onclick="window.openPreview(this.src, 'Live Canvas Preview')" />
+          <div class="chrome-view-overlay" id="chrome-view-overlay">Live Canvas Ready</div>
         </div>
       </div>
 
@@ -268,7 +294,7 @@
       <!-- Multi-Worker Parallel Live Cards Grid -->
       <div class="workers-live-section" id="workers-live-section" style="margin-top: 14px; margin-bottom: 14px;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-          <span style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;">Parallel Chrome Workers Telemetry</span>
+          <span style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;">Parallel Channels Telemetry</span>
           <span id="workers-active-count-badge" style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 9999px; padding: 2px 8px; font-weight: 600;">Standby</span>
         </div>
         <div class="workers-live-grid" id="workers-live-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
@@ -289,15 +315,15 @@
         <div class="step-item" id="step-2">
           <div class="step-icon">2</div>
           <div class="step-info">
-            <div class="step-title">Chrome Opened</div>
-            <div class="step-desc" id="step-2-desc">Google Flow + Extension</div>
+            <div class="step-title">Engine Connected</div>
+            <div class="step-desc" id="step-2-desc">Ready</div>
           </div>
         </div>
         <div class="step-line" id="line-2"></div>
         <div class="step-item" id="step-3">
           <div class="step-icon">3</div>
           <div class="step-info">
-            <div class="step-title">Extension Synced</div>
+            <div class="step-title">Prompts Synced</div>
             <div class="step-desc" id="step-3-desc">Prompts transferred</div>
           </div>
         </div>
@@ -314,7 +340,7 @@
       <!-- Banner Alert with Completion Dismiss Action -->
       <div class="banner-alert" id="status-alert">
         <div class="alert-icon" id="status-alert-icon">⚡</div>
-        <div class="alert-text" id="status-alert-text">Click "Generate in Google Flow" to begin automated generation.</div>
+        <div class="alert-text" id="status-alert-text">Click "Generate Images" to begin automated generation.</div>
         <button class="btn btn-xs btn-alert-dismiss" id="btn-alert-dismiss" style="display: none;">Dismiss & View Gallery</button>
       </div>
 
@@ -339,18 +365,18 @@
           <div class="panel-header">
             <div class="panel-title-group">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-              <h4>Live Extension & Flow Console</h4>
+              <h4>Live Flow Console</h4>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <button type="button" class="btn btn-xs" id="btn-console-latest-shot" style="display: none; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 11px; padding: 2px 8px; border-radius: 6px; cursor: pointer;" title="Open full Chrome canvas screenshot">
-                📸 View Chrome Snapshot
+              <button type="button" class="btn btn-xs" id="btn-console-latest-shot" style="display: none; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 11px; padding: 2px 8px; border-radius: 6px; cursor: pointer;" title="Open full canvas screenshot">
+                📸 View Snapshot
               </button>
               <span class="panel-badge log-live-badge">● Streaming</span>
             </div>
           </div>
           <div class="terminal-container" id="terminal-container">
             <div class="terminal-logs" id="terminal-logs">
-              <div class="terminal-row"><span class="log-tag tag-sys">[System]</span> Live console initialized. Waiting for Google Flow telemetry...</div>
+              <div class="terminal-row"><span class="log-tag tag-sys">[System]</span> Live console initialized. Ready to generate...</div>
             </div>
           </div>
         </div>
@@ -378,11 +404,213 @@
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
           </div>
           <h4>No Images Generated Yet</h4>
-          <p>Once Google Flow finishes creating images, they will appear here live from <code>Downloads/turboflow</code>.</p>
+          <p>Generated images will appear here live from <code>Downloads/easyaihub</code>.</p>
         </div>
       </div>
     </section>
   </main>
+
+  <main class="main-container" id="view-smart-pipeline" style="display: none;">
+    <!-- Top Action Card: Story & Script Studio Control Bar -->
+    <section class="card input-card" style="margin-bottom: 20px;">
+      <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div class="card-title-group">
+          <h2 class="card-title" style="display: flex; align-items: center; gap: 8px;">
+            <span>Story & Script Studio</span>
+            <span class="badge" id="pipeline-status-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; font-weight: 600;">Idle</span>
+          </h2>
+          <p style="color: #94a3b8; font-size: 0.84rem; margin-top: 4px;">Automated Multi-Worker Content Pipeline & Live Chrome Execution</p>
+        </div>
+        <div class="card-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <select id="pipeline-demo-preset" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(56, 189, 248, 0.3); color: #e2e8f0; font-size: 0.8rem; padding: 7px 12px; border-radius: 6px; font-weight: 500; cursor: pointer;">
+            <option value="standard">Preset: 4-Step Story Pipeline (W#1–W#3)</option>
+            <option value="parallel">Preset: 7-Worker Parallel Batch (W#1–W#7)</option>
+            <option value="simulation">Preset: Instant Interactive Test (Simulation)</option>
+          </select>
+          <button type="button" class="btn btn-sm btn-secondary" id="btn-pipeline-demo-load" style="font-weight: 600; padding: 7px 14px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; cursor: pointer;">
+            🧪 Load Demo Job
+          </button>
+          <button type="button" class="btn btn-sm btn-primary" id="btn-pipeline-run" style="font-weight: 600; padding: 7px 18px; border-radius: 6px; cursor: pointer;">
+            🚀 Run Pipeline
+          </button>
+          <button type="button" class="btn btn-sm btn-danger" id="btn-pipeline-stop" style="display: none; font-weight: 600; padding: 7px 14px; border-radius: 6px; cursor: pointer;">
+            ⏹️ Stop Pipeline
+          </button>
+          <button type="button" class="btn btn-sm btn-ghost" id="btn-pipeline-clear" style="color: #94a3b8; padding: 7px 12px; border-radius: 6px; cursor: pointer;">
+            🧹 Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- Manual Prompt & Step Execution Panel -->
+      <div class="manual-execution-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 14px 16px; margin-top: 14px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.88rem; font-weight: 700; color: #f8fafc;">✍️ Manual Prompt & Step Tester</span>
+            <span style="font-size: 0.72rem; color: #94a3b8;">(Run any prompt or step directly on any of the 7 worker Chromes)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <label style="font-size: 0.75rem; color: #94a3b8; font-weight: 500;">Target Worker:</label>
+            <select id="manual-worker-select" style="background: rgba(2, 6, 23, 0.85); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.78rem; padding: 4px 10px; border-radius: 6px; font-weight: 600;">
+              <option value="1">Worker #1 (Primary)</option>
+              <option value="2">Worker #2</option>
+              <option value="3">Worker #3</option>
+              <option value="4">Worker #4</option>
+              <option value="5">Worker #5</option>
+              <option value="6">Worker #6</option>
+              <option value="7">Worker #7</option>
+            </select>
+            <label style="font-size: 0.75rem; color: #94a3b8; font-weight: 500; margin-left: 6px;">Step Type:</label>
+            <select id="manual-step-select" style="background: rgba(2, 6, 23, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); color: #e2e8f0; font-size: 0.78rem; padding: 4px 10px; border-radius: 6px;">
+              <option value="custom">Custom Prompt</option>
+              <option value="topic">Step 1: Topic Generation</option>
+              <option value="script">Step 2: Script Writing</option>
+              <option value="image_prompts">Step 3: Image Prompts</option>
+              <option value="video_prompts">Step 4: Video Prompts</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Prompt Textarea -->
+        <textarea id="manual-prompt-input" rows="3" placeholder="Enter custom prompt to execute manually on selected worker (e.g. Suggest 3 high-retention documentary titles about deep-sea mysteries)..." style="width: 100%; background: rgba(2, 6, 23, 0.75); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 10px 12px; font-family: inherit; font-size: 0.84rem; color: #f8fafc; resize: vertical; outline: none;"></textarea>
+
+        <!-- Quick Sample Chips & Run Button -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span style="font-size: 0.72rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Quick Fill:</span>
+            <button type="button" class="btn btn-xs sample-manual-btn" data-sample="topic" style="padding: 3px 8px; font-size: 0.72rem; border-radius: 4px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8; cursor: pointer;">💡 Viral Topic</button>
+            <button type="button" class="btn btn-xs sample-manual-btn" data-sample="script" style="padding: 3px 8px; font-size: 0.72rem; border-radius: 4px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8; cursor: pointer;">📜 Voiceover Script</button>
+            <button type="button" class="btn btn-xs sample-manual-btn" data-sample="image" style="padding: 3px 8px; font-size: 0.72rem; border-radius: 4px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8; cursor: pointer;">🎨 5 Scene Prompts</button>
+            <button type="button" class="btn btn-xs sample-manual-btn" data-sample="short" style="padding: 3px 8px; font-size: 0.72rem; border-radius: 4px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8; cursor: pointer;">⚡ Quick Test Ping</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn btn-sm" id="btn-manual-run" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #ffffff; font-weight: 600; padding: 7px 18px; border-radius: 6px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);">
+              <span>▶ Run Manually Now</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Chrome Browser Viewport for Smart Pipeline -->
+      <div class="chrome-view-panel" id="pipeline-chrome-view-panel" style="margin-top: 14px; margin-bottom: 16px;">
+        <div class="chrome-view-header">
+          <div class="chrome-view-title-group" style="display: flex; align-items: center; gap: 8px;">
+            <span class="live-recording-dot"></span>
+            <h4>🖥️ Live Chrome Canvas</h4>
+            <div id="pipeline-worker-switcher" style="display: inline-flex; align-items: center; gap: 4px; margin-left: 8px;">
+              <!-- Populated dynamically via JS: Worker #1..#7 tabs -->
+            </div>
+            <span class="chrome-view-badge" id="pipeline-chrome-status">● Live Stream (W#1)</span>
+          </div>
+          <div class="chrome-view-actions">
+            <button type="button" class="btn btn-xs btn-outline" id="btn-pipeline-focus-chrome" style="color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.4); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.72rem; font-weight: 600;">
+              🌐 Bring Chrome to Front
+            </button>
+            <button type="button" class="btn btn-xs btn-outline" id="btn-pipeline-hide-chrome" style="color: #94a3b8; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.72rem;">
+              👁️ Hide Chrome
+            </button>
+            <button type="button" class="btn btn-xs btn-ghost" id="btn-pipeline-expand-canvas" style="color: #94a3b8; padding: 5px 12px; border-radius: 6px; cursor: pointer;" onclick="window.openPreview(document.getElementById('pipeline-chrome-live-img').src, 'Live Pipeline Canvas Preview')">
+              ⛶ Fullscreen Expand
+            </button>
+          </div>
+        </div>
+        <div class="chrome-view-body">
+          <img id="pipeline-chrome-live-img" src="/debug/placeholder.svg" alt="Live Canvas View" onclick="window.openPreview(this.src, 'Live Pipeline Canvas Preview')" />
+          <div class="chrome-view-overlay" id="pipeline-chrome-overlay">Live Canvas Ready — Worker #1</div>
+        </div>
+      </div>
+
+      <!-- Multi-Worker Parallel Live Cards Grid (All 7 Workers) -->
+      <div class="workers-live-section" style="margin-top: 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;">7 Worker Chromes Telemetry</span>
+          <span id="pipeline-workers-count-badge" style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 9999px; padding: 2px 8px; font-weight: 600;">7 Channels Ready</span>
+        </div>
+        <div class="workers-live-grid" id="pipeline-workers-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
+          <!-- Populated dynamically via JS: 7 worker cards -->
+        </div>
+      </div>
+
+      <!-- Pipeline Stepper Tracker -->
+      <div class="pipeline-stepper" id="pipeline-stepper-box" style="margin-top: 14px; margin-bottom: 14px;">
+        <div class="step-item" id="p-step-1">
+          <div class="step-icon">1</div>
+          <div class="step-info">
+            <div class="step-title">Topic Generation</div>
+            <div class="step-desc" id="p-step-1-desc">Worker #1 Standby</div>
+          </div>
+        </div>
+        <div class="step-line" id="p-line-1"></div>
+        <div class="step-item" id="p-step-2">
+          <div class="step-icon">2</div>
+          <div class="step-info">
+            <div class="step-title">Script Writing</div>
+            <div class="step-desc" id="p-step-2-desc">Pending Topic</div>
+          </div>
+        </div>
+        <div class="step-line" id="p-line-2"></div>
+        <div class="step-item" id="p-step-3">
+          <div class="step-icon">3</div>
+          <div class="step-info">
+            <div class="step-title">Image Prompts</div>
+            <div class="step-desc" id="p-step-3-desc">Pending Script</div>
+          </div>
+        </div>
+        <div class="step-line" id="p-line-3"></div>
+        <div class="step-item" id="p-step-4">
+          <div class="step-icon">4</div>
+          <div class="step-info">
+            <div class="step-title">Video Prompts</div>
+            <div class="step-desc" id="p-step-4-desc">Pending Script</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Split View: Pipeline Live Console & Generated Output Inspector -->
+    <div class="monitor-panels-row" style="margin-top: 16px;">
+      <!-- Pipeline Live Terminal Logs -->
+      <div class="monitor-panel logs-panel" style="flex: 1; min-width: 320px;">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+            <h4>Pipeline Flow Console</h4>
+          </div>
+          <span class="panel-badge log-live-badge" id="pipeline-stream-badge">● Streaming</span>
+        </div>
+        <div class="terminal-container" style="height: 280px;">
+          <div class="terminal-logs" id="pipeline-terminal-logs">
+            <div class="terminal-row"><span class="log-tag tag-sys">[System]</span> Story & Script Studio initialized. Ready for pipeline jobs.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generated Content Output Inspector -->
+      <div class="monitor-panel scenes-panel" style="flex: 1; min-width: 320px;">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
+            <h4>Generated Output Inspector</h4>
+          </div>
+          <button type="button" class="btn btn-xs" id="btn-pipeline-copy-output" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 11px; padding: 2px 10px; border-radius: 6px; cursor: pointer;">
+            📋 Copy Output
+          </button>
+        </div>
+        <div style="padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+          <div id="pipeline-output-tabs" style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-xs p-tab active" data-tab="topic" style="padding: 3px 10px; font-size: 0.72rem; border-radius: 4px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); cursor: pointer; font-weight: 600;">Topic</button>
+            <button type="button" class="btn btn-xs p-tab" data-tab="script" style="padding: 3px 10px; font-size: 0.72rem; border-radius: 4px; background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer;">Script</button>
+            <button type="button" class="btn btn-xs p-tab" data-tab="image_prompts" style="padding: 3px 10px; font-size: 0.72rem; border-radius: 4px; background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer;">Image Prompts</button>
+            <button type="button" class="btn btn-xs p-tab" data-tab="video_prompts" style="padding: 3px 10px; font-size: 0.72rem; border-radius: 4px; background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer;">Video Prompts</button>
+          </div>
+          <div id="pipeline-output-box" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 12px; height: 235px; overflow-y: auto; font-family: inherit; font-size: 0.82rem; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap;">
+No output generated yet. Click "Load Demo Job" or "Run Pipeline" to generate content.
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  </div> <!-- end app-layout -->
 
   <!-- Image Modal for Full Preview -->
   <div class="modal" id="image-modal">
@@ -397,24 +625,24 @@
     </div>
   </div>
 
-  <!-- Google Accounts & Multi-Chrome Manager Modal -->
+  <!-- Account Logins & Speed Profiles Modal -->
   <div class="modal" id="profile-modal">
     <div class="modal-overlay" id="profile-modal-overlay"></div>
     <div class="modal-content" style="max-width: 660px; background: #0b1329; border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 16px; padding: 24px; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.85);">
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
         <h3 style="margin: 0; font-size: 1.15rem; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
-          <span>🔑</span> Google Accounts & Multi-Chrome Profiles
+          <span>🔑</span> Account Logins & Speed Profiles
         </h3>
         <button class="modal-close" id="profile-modal-close" style="background: none; border: none; font-size: 22px; color: #94a3b8; cursor: pointer; line-height: 1;">&times;</button>
       </div>
       <p style="font-size: 0.83rem; color: #94a3b8; margin-bottom: 16px; line-height: 1.5;">
-        Each worker has a permanent Chrome profile. Click <strong>"Open & Sign In"</strong> below to launch that Chrome window and log in to a Google account once. The login stays saved permanently!
+        Each channel maintains a secure, permanent profile. Click <strong>"Open & Sign In"</strong> below to launch and sign in once. Your login stays saved permanently!
       </p>
       <div id="profiles-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin-bottom: 18px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
         <!-- Populated dynamically via JS -->
       </div>
       <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 12px; font-size: 0.8rem; color: #7dd3fc; line-height: 1.4;">
-        💡 <strong>Pro-Tip:</strong> Chrome #1 has your existing account. If you log in to separate Google accounts across Chromes #2 through #7, all 7 workers will generate in parallel without hitting rate limits!
+        💡 <strong>Tip:</strong> Channel #1 uses your main account. Using separate accounts across Channels #2 through #7 allows all 7 channels to generate in parallel without rate limits!
       </div>
     </div>
   </div>

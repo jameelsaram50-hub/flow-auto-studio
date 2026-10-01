@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flow Studio — Minimalist AI Image Generation</title>
-  <meta name="description" content="Sleek, minimalist interface for multi-worker parallel AI image automation with Google Flow.">
+  <title>Easy AI Hub — Image Studio</title>
+  <meta name="description" content="Sleek, minimalist interface for multi-channel parallel AI image automation.">
   <link rel="stylesheet" href="/minimal.css">
 </head>
 <body>
@@ -16,7 +16,7 @@
     <header class="minimal-header">
       <a href="/minimal.html" class="brand">
         <div class="brand-icon">✦</div>
-        <span class="brand-name">Flow Studio</span>
+        <span class="brand-name">Easy AI Hub</span>
       </a>
 
       <div class="header-meta">
@@ -50,14 +50,21 @@
         </div>
 
         <div class="composer-actions">
-          <div class="worker-select-wrap" title="Select number of parallel Chrome workers">
-            <span>⚡ Workers:</span>
+          <div class="worker-select-wrap" title="Select Generation Mode">
+            <span>⚙️ Mode:</span>
+            <select id="mode-select">
+              <option value="playwright">⚡ Fast Automation</option>
+            </select>
+          </div>
+
+          <div class="worker-select-wrap" title="Select Generation Speed">
+            <span>⚡ Speed:</span>
             <select id="worker-select">
-              <option value="7" selected>7 Parallel Chromes</option>
-              <option value="5">5 Parallel Chromes</option>
-              <option value="3">3 Parallel Chromes</option>
-              <option value="2">2 Parallel Chromes</option>
-              <option value="1">1 Worker (Single)</option>
+              <option value="7" selected>7x (Fastest)</option>
+              <option value="5">5x (Fast)</option>
+              <option value="3">3x (Standard)</option>
+              <option value="2">2x</option>
+              <option value="1">1x (Single)</option>
             </select>
           </div>
 
@@ -133,7 +140,7 @@
       </div>
 
       <div class="drawer-actions">
-        <button class="btn-drawer-outline" id="btn-fix-flow">🧹 Clear Flow Cache</button>
+        <button class="btn-drawer-outline" id="btn-fix-flow">🧹 Clear Engine Cache</button>
         <button class="btn-drawer-outline" id="btn-clear-queue" style="border-color: rgba(239, 68, 68, 0.3); color: #f87171;">🔄 Reset Session & Queue</button>
       </div>
     </div>

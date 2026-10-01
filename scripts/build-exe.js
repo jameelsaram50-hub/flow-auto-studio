@@ -60,9 +60,9 @@ const itemsToCopy = [
   'package.json',
   'server.js',
   'playwright_worker.js',
+  'chatgpt_worker.js',
   'electron',
   'public',
-  'turboflow-2.3.2.1-betaa',
   'node_modules',
 ];
 
@@ -72,6 +72,14 @@ for (const item of itemsToCopy) {
   if (fs.existsSync(src)) {
     console.log(`Copying ${item}...`);
     copyRecursive(src, dest);
+  }
+}
+
+// Chrome worker launchers (Open_Chrome_Worker_1..7.bat) next to the exe
+const launchersDir = path.join(ROOT_DIR, 'launchers');
+if (fs.existsSync(launchersDir)) {
+  for (const f of fs.readdirSync(launchersDir)) {
+    fs.copyFileSync(path.join(launchersDir, f), path.join(DIST_DIR, f));
   }
 }
 

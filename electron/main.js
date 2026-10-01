@@ -2,7 +2,7 @@ const { app, BrowserWindow, shell, ipcMain, Notification } = require('electron')
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const logFile = path.join(os.homedir(), 'flow-auto-studio.log');
+const logFile = path.join(os.homedir(), 'easyaihub-image-studio.log');
 
 function log(msg) {
   try {
@@ -14,9 +14,50 @@ process.on('uncaughtException', (err) => {
   log(`UNCAUGHT EXCEPTION: ${err.stack || err}`);
 });
 
+process.on('unhandledRejection', (reason) => {
+  log(`UNHANDLED REJECTION: ${reason?.stack || reason}`);
+});
+
 log('Electron main starting...');
 
-const { startServer, launchChrome, getTurboFlowDir } = require('../server');
+// Guarantee single running instance of Easy AI Hub Image Studio
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  log('Another instance of Easy AI Hub Image Studio is already running. Focusing existing window.');
+  app.quit();
+  // Do NOT call process.exit() here — let Electron clean up naturally
+}
+
+app.on('second-instance', () => {
+  log('Second instance triggered — restoring/focusing main window.');
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  } else {
+    createWindow();
+  }
+});
+
+let startServer, launchChrome, getEasyAiHubDir;
+try {
+  const server = require('../server');
+  startServer = server.startServer;
+  launchChrome = server.launchChrome;
+  getEasyAiHubDir = server.getEasyAiHubDir;
+} catch (e) {
+  log(`FATAL: Failed to load server module: ${e.stack || e}`);
+  // Define stubs so the window still opens with a friendly error message
+  startServer = (port) => {
+    const http = require('http');
+    http.createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end('<h2 style="font-family:sans-serif;color:red;padding:40px">⚠️ Server failed to start. Please restart the app.</h2>');
+    }).listen(port, '127.0.0.1');
+  };
+  launchChrome = () => {};
+  getEasyAiHubDir = () => require('path').join(require('os').homedir(), 'Downloads', 'easyaihub');
+}
 
 let mainWindow = null;
 const PORT = 3001;
@@ -28,9 +69,10 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 680,
     backgroundColor: '#07090e',
-    title: 'Flow Auto Studio — AI Image Automation Desktop',
+    title: 'Easy AI Hub — Image Studio',
     autoHideMenuBar: true,
-    show: true,
+    // Use show:false + ready-to-show to guarantee the window appears in front
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -39,15 +81,37 @@ function createWindow() {
     },
   });
 
-  mainWindow.focus();
-  mainWindow.setAlwaysOnTop(true);
-  setTimeout(() => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.setAlwaysOnTop(false);
-    }
-  }, 1000);
+  // Show and raise to front once content is ready (avoids blank flash)
+  mainWindow.once('ready-to-show', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.show();
+    mainWindow.focus();
+    // Briefly always-on-top to break through any other window
+    mainWindow.setAlwaysOnTop(true);
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setAlwaysOnTop(false);
+      }
+    }, 1500);
+    log('Window shown and raised to front.');
+  });
 
-  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+  // Fallback: if ready-to-show never fires in 5s, show anyway
+  const showFallback = setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      log('Fallback show triggered — ready-to-show did not fire.');
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }, 5000);
+  mainWindow.once('ready-to-show', () => clearTimeout(showFallback));
+  mainWindow.once('closed', () => clearTimeout(showFallback));
+
+  mainWindow.webContents.on('console-message', (event, ...args) => {
+    const level = event?.level ?? args[0];
+    const message = event?.message ?? args[1];
+    const line = event?.lineNumber ?? args[2];
+    const sourceId = event?.sourceId ?? args[3];
     log(`[Renderer Console ${level}] ${message} (${sourceId}:${line})`);
   });
 
@@ -74,7 +138,7 @@ function createWindow() {
 
 // IPC Handlers
 ipcMain.handle('open-path', async (event, targetPath) => {
-  const finalPath = targetPath || getTurboFlowDir();
+  const finalPath = targetPath || getEasyAiHubDir();
   shell.openPath(finalPath);
   return true;
 });
@@ -90,7 +154,7 @@ ipcMain.handle('open-external', async (event, url) => {
 ipcMain.handle('show-notification', async (event, { title, body }) => {
   if (Notification.isSupported()) {
     new Notification({
-      title: title || 'Flow Auto Studio',
+      title: title || 'Easy AI Hub',
       body: body || 'Operation finished',
     }).show();
   }
@@ -105,7 +169,7 @@ ipcMain.handle('relaunch-chrome', async () => {
 ipcMain.handle('get-desktop-info', async () => {
   return {
     platform: process.platform,
-    downloadsDir: getTurboFlowDir(),
+    downloadsDir: getEasyAiHubDir(),
     appVersion: '1.0.0',
   };
 });
@@ -114,7 +178,12 @@ ipcMain.handle('get-desktop-info', async () => {
 app.whenReady().then(() => {
   log('app.whenReady triggered');
   // Start embedded local bridge server on port 3001
-  startServer(PORT);
+  try {
+    startServer(PORT);
+    log('Server started on port ' + PORT);
+  } catch (e) {
+    log('Server start error: ' + (e.stack || e));
+  }
 
   createWindow();
 

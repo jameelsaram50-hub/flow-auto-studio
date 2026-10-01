@@ -374,6 +374,32 @@ body {
   transform: translateY(0);
 }
 
+/* Green Glow for Extension Mode (Anti-Detect Stealth) */
+.btn-hero-extension {
+  background: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%) !important;
+  color: #022c22 !important;
+  box-shadow: 0 8px 30px -4px rgba(16, 185, 129, 0.55), 0 0 16px rgba(16, 185, 129, 0.35) !important;
+  border: 1px solid rgba(52, 211, 153, 0.4) !important;
+}
+
+.btn-hero-extension:hover {
+  box-shadow: 0 12px 36px -4px rgba(16, 185, 129, 0.75), 0 0 26px rgba(16, 185, 129, 0.5) !important;
+  border-color: rgba(52, 211, 153, 0.8) !important;
+}
+
+/* Blue Glow for Playwright Mode (Original Multi-Worker) */
+.btn-hero-playwright {
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #38bdf8 100%) !important;
+  color: #030712 !important;
+  box-shadow: 0 8px 30px -4px rgba(56, 189, 248, 0.55), 0 0 16px rgba(56, 189, 248, 0.35) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
+}
+
+.btn-hero-playwright:hover {
+  box-shadow: 0 12px 36px -4px rgba(56, 189, 248, 0.75), 0 0 26px rgba(56, 189, 248, 0.5) !important;
+  border-color: rgba(56, 189, 248, 0.8) !important;
+}
+
 .btn-content {
   position: relative;
   z-index: 2;
@@ -1738,7 +1764,8 @@ body {
   justify-content: center;
 }
 
-#chrome-live-img {
+#chrome-live-img,
+#pipeline-chrome-live-img {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -1746,7 +1773,8 @@ body {
   transition: transform 0.2s ease;
 }
 
-#chrome-live-img:hover {
+#chrome-live-img:hover,
+#pipeline-chrome-live-img:hover {
   transform: scale(1.01);
 }
 
@@ -1766,3 +1794,11 @@ body {
 }
 
 
+
+/* SIDEBAR LAYOUT */
+.app-layout { display: flex; min-height: calc(100vh - 64px); }
+.sidebar { width: 220px; background: rgba(2, 6, 23, 0.5); border-right: 1px solid rgba(255,255,255,0.05); padding: 20px 10px; }
+.sidebar-item { display: flex; align-items: center; gap: 10px; padding: 12px 16px; width: 100%; text-align: left; background: transparent; border: none; color: #94a3b8; font-family: inherit; font-size: 0.9rem; font-weight: 500; cursor: pointer; border-radius: 8px; transition: all 0.2s; margin-bottom: 8px; }
+.sidebar-item:hover { background: rgba(255,255,255,0.05); color: #f8fafc; }
+.sidebar-item.active { background: rgba(56, 189, 248, 0.1); color: #38bdf8; font-weight: 600; }
+.main-container { flex: 1; margin: 0; padding: 20px; max-width: none; }

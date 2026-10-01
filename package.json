@@ -1,7 +1,7 @@
 {
-  "name": "ai-image-automation-flow",
+  "name": "easyaihub-image-tool",
   "version": "1.0.0",
-  "description": "1-Click AI Image Automation for Google Flow & TurboFlow Extension",
+  "description": "1-Click Automated Batch Image Studio for Easy AI Hub",
   "main": "electron/main.js",
   "type": "commonjs",
   "scripts": {

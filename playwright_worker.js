@@ -18,16 +18,18 @@ function findChromePath() {
   return 'chrome.exe';
 }
 
+// Workers 1–7 are plain Playwright Chrome profiles.
+
 function getDownloadsDir() {
-  const dir = path.join(os.homedir(), 'Downloads', 'turboflow');
+  const dir = path.join(os.homedir(), 'Downloads', 'easyaihub');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
 function getProfileDir(workerId = 1) {
   const dirName = (Number(workerId) === 1 || !workerId)
-    ? '.turboflow-chrome-profile'
-    : `.turboflow-chrome-profile-${workerId}`;
+    ? '.easyaihub-chrome-profile'
+    : `.easyaihub-chrome-profile-${workerId}`;
   const dir = path.join(os.homedir(), dirName);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
@@ -85,8 +87,17 @@ function resetCrashFlags(profileDir) {
 }
 
 async function applyBackgroundWindowPlacement(context, page, workerId = 1) {
-  // Headless mode: no desktop window is created by Chromium, completely silent in background
-  return;
+  try {
+    if (page && !page.isClosed()) {
+      const session = await page.context().newCDPSession(page);
+      const { windowId } = await session.send('Browser.getWindowForTarget');
+      await session.send('Browser.setWindowBounds', {
+        windowId,
+        bounds: { left: -3200, top: -3200, width: 1280, height: 900, windowState: 'normal' }
+      });
+      await session.detach().catch(() => {});
+    }
+  } catch (e) {}
 }
 
 function hideProcessWindows(profileDir) {
@@ -108,7 +119,7 @@ function cleanupProfileLocks(profileDir) {
 
   if (process.platform === 'win32') {
     try {
-      // Use strict boundary match so .turboflow-chrome-profile does NOT match .turboflow-chrome-profile-2..7
+      // Use strict boundary match so .easyaihub-chrome-profile does NOT match .easyaihub-chrome-profile-2..7
       const psCommand = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -and ($_.CommandLine -like '*${baseDirName}"*' -or $_.CommandLine -like '*${baseDirName} *' -or $_.CommandLine -like '*${baseDirName}/' -or $_.CommandLine -like '*${baseDirName}\\*' -or $_.CommandLine.Trim().EndsWith('${baseDirName}')) } | Select-Object -ExpandProperty ProcessId`;
       const res = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: 5000 });
       const pids = (res.stdout || '').trim().split(/\s+/).filter(Boolean);
@@ -171,15 +182,16 @@ function openWorkerForLogin(workerId = 1) {
   exec(cmd, { shell: 'cmd.exe' }, (err) => {
     if (err) {
       console.warn(`[Playwright Engine] start command fallback to spawn: ${err.message}`);
-      const child = spawn(chromeExe, [
+      const spawnArgs = [
         `--user-data-dir=${profileDir}`,
         '--profile-directory=Default',
         '--new-window',
         '--no-first-run',
         '--no-default-browser-check',
         '--start-maximized',
-        flowUrl
-      ], {
+      ];
+      spawnArgs.push(flowUrl);
+      const child = spawn(chromeExe, spawnArgs, {
         detached: true,
         stdio: 'ignore'
       });
@@ -254,14 +266,30 @@ function getProfilesStatus() {
 function downloadFile(url, destPath) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https') ? https : http;
-    const file = fs.createWriteStream(destPath);
     client.get(url, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return downloadFile(res.headers.location, destPath).then(resolve).catch(reject);
+        let redirectUrl = res.headers.location;
+        if (redirectUrl.startsWith('/')) {
+          try {
+            const parsed = new URL(url);
+            redirectUrl = `${parsed.protocol}//${parsed.host}${redirectUrl}`;
+          } catch (e) {}
+        }
+        res.resume();
+        return downloadFile(redirectUrl, destPath).then(resolve).catch(reject);
       }
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error(`Failed to download image: HTTP ${res.statusCode}`));
+      }
+      const file = fs.createWriteStream(destPath);
       res.pipe(file);
       file.on('finish', () => {
         file.close(() => resolve(destPath));
+      });
+      file.on('error', (err) => {
+        fs.unlink(destPath, () => {});
+        reject(err);
       });
     }).on('error', (err) => {
       fs.unlink(destPath, () => {});
@@ -281,9 +309,9 @@ function isContextUsable(ctx) {
 }
 
 async function bringChromeToFront(workerId = 1) {
+  let targetPage = null;
+  const targetId = Number(workerId) || 1;
   try {
-    const targetId = Number(workerId) || 1;
-    let targetPage = null;
     const workerObj = activeWorkerPool.get(targetId);
     if (workerObj && isContextUsable(workerObj.context) && workerObj.page && !workerObj.page.isClosed()) {
       targetPage = workerObj.page;
@@ -309,11 +337,16 @@ async function bringChromeToFront(workerId = 1) {
     }
   } catch (e) {}
 
-  if (process.platform === 'win32') {
+  if (targetPage && process.platform === 'win32') {
     try {
+      const profileDir = getProfileDir(workerId);
+      const baseDirName = path.basename(profileDir);
+      const psCmd = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${baseDirName}*' } | Select-Object -ExpandProperty ProcessId | ForEach-Object { (New-Object -ComObject WScript.Shell).AppActivate($_) }`;
+      exec(psCmd);
       execSync('powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $ws.AppActivate(\'Flow\'); $ws.AppActivate(\'Google Chrome\')"', { stdio: 'ignore' });
     } catch (e) {}
   }
+  return { success: Boolean(targetPage), workerId: Number(workerId) || 1 };
 }
 
 async function hideChromeWindow(workerId = 1) {
@@ -552,26 +585,52 @@ let isJobRunning = false;
 async function createNewProject(page) {
   console.log('[Playwright Engine] 🆕 Opening brand new project canvas in Google Flow...');
   try {
-    await page.goto('https://flow.google.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await safeWait(3000);
+    // 1. Dismiss any open menus, dialogs, or dropdowns
+    await page.keyboard.press('Escape').catch(() => {});
+    await safeWait(300);
+    await page.keyboard.press('Escape').catch(() => {});
+    await safeWait(300);
 
-    const newBtn = page.locator('button.new-project-button, button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
-    if (await newBtn.isVisible({ timeout: 15000 }).catch(() => false)) {
-      const box = await newBtn.boundingBox().catch(() => null);
-      if (box) {
-        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
-        await safeWait(150);
-      }
-      await newBtn.click();
-      await page.waitForURL('**/project/**', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
-      console.log('[Playwright Engine] ✅ Fresh canvas project opened:', page.url());
-      await captureDebugView(page, 'Fresh Project Canvas Opened');
+    const oldUrl = page.url() || '';
+
+    // 2. Navigate to Google Flow root to ensure a completely fresh, untainted project
+    console.log('[Playwright Engine] Navigating to https://flow.google.com/ to create fresh project...');
+    await page.goto('https://flow.google.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await safeWait(2000);
+
+    // If page is stuck on Loading..., reload once to break the hang
+    const isStuck = await page.evaluate(() => {
+      const t = (document.body.innerText || '').trim();
+      return t === 'Loading...' || t.startsWith('Loading...\nGoogle Flow can make mistakes');
+    }).catch(() => false);
+    if (isStuck) {
+      console.log('[Playwright Engine] 🔄 Page stuck on Loading... Reloading...');
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+      await safeWait(2500);
     }
 
-    await safeWait(2500);
+    // 3. Click 'New project' button on Google Flow home page
+    const newBtn = page.locator('button.new-project-button, button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
+    await newBtn.waitFor({ state: 'visible', timeout: 20000 });
+    console.log('[Playwright Engine] Clicking New project button...');
+    await newBtn.click({ force: true });
+
+    // 4. Wait for the new project URL to load
+    await page.waitForURL(url => url.toString().includes('/project/') && (!oldUrl.includes('/project/') || url.toString() !== oldUrl), { timeout: 35000 }).catch(async () => {
+      await page.waitForURL('**/project/**', { timeout: 15000 }).catch(() => {});
+    });
+
+    console.log('[Playwright Engine] ✅ Fresh canvas project opened:', page.url());
+    await captureDebugView(page, 'Fresh Project Canvas Opened');
+
+    await safeWait(2000);
+    await page.keyboard.press('Escape').catch(() => {});
+    await safeWait(400);
+
+    // 5. Ensure Direct Canvas Mode & 1x output
     await ensureDirectCanvasMode(page);
     const editor = page.locator('div.ProseMirror').first();
-    await editor.waitFor({ state: 'visible', timeout: 25000 });
+    await editor.waitFor({ state: 'visible', timeout: 25000 }).catch(() => {});
     return editor;
   } catch (err) {
     console.warn('[Playwright Engine] Warning creating new project:', err.message);
@@ -582,16 +641,17 @@ async function createNewProject(page) {
 
 async function clearFlowSiteData(page) {
   try {
-    console.log('[Playwright Engine] 🧹 Clearing Google Flow site data & caches via CDP...');
+    console.log('[Playwright Engine] 🧹 Safe-clearing Google Flow cache & storage...');
     const client = await page.context().newCDPSession(page);
-    await client.send('Storage.clearDataForOrigin', {
-      origin: 'https://flow.google.com',
-      storageTypes: 'indexeddb,cache_storage,service_workers,local_storage'
-    });
-    console.log('[Playwright Engine] ✅ Google Flow site data cleared successfully.');
+    await client.send('Network.clearBrowserCache');
+    await page.evaluate(() => {
+      try { localStorage.clear(); } catch (e) {}
+      try { sessionStorage.clear(); } catch (e) {}
+    }).catch(() => {});
+    console.log('[Playwright Engine] ✅ Cache & storage cleared safely.');
     return true;
   } catch (err) {
-    console.warn('[Playwright Engine] CDP clearDataForOrigin warning:', err.message);
+    console.warn('[Playwright Engine] clearBrowserCache warning:', err.message);
     return false;
   }
 }
@@ -602,31 +662,97 @@ async function resetFlowSiteDataAndSession() {
   const page = pages.length > 0 ? pages[0] : await context.newPage();
   await clearFlowSiteData(page);
   await createNewProject(page);
-  return { success: true, url: page.url() };
+  const targetUrl = page.url();
+  try {
+    await context.close();
+  } catch (e) {}
+  activeBrowserContext = null;
+  return { success: true, url: targetUrl };
 }
 
-async function checkUnusualActivity(page) {
+async function retryFailedCard(page) {
   try {
     return await page.evaluate(() => {
-      const fullText = document.body ? (document.body.innerText || '') : '';
-      const hasErrorPhrase = /unusual activity/i.test(fullText) ||
-                             /suspicious activity/i.test(fullText) ||
-                             /too many requests/i.test(fullText);
-      if (!hasErrorPhrase) return false;
-
-      const modals = document.querySelectorAll('[role="dialog"], [role="alert"], .error, .banner, .modal, .toast');
-      for (let m of modals) {
-        if (/unusual activity/i.test(m.innerText || '')) return true;
-      }
-
-      const cards = document.querySelectorAll('div, section');
-      for (let c of cards) {
-        if (c.innerText && /unusual activity/i.test(c.innerText)) {
-          return true;
+      const candidates = document.querySelectorAll('h1, h2, h3, h4, [role="alert"], div.tile-header, span, p, div');
+      for (const el of candidates) {
+        const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+        if (txt.includes('unusual activity') || txt.includes('not been charged')) {
+          const card = el.closest('div.tile-container, div.card, div[class*="tile"], div[class*="card"], [role="region"], section') || el.parentElement;
+          if (card) {
+            const actionBtns = card.querySelectorAll('button, [role="button"]');
+            for (const btn of actionBtns) {
+              const bTxt = (btn.innerText || btn.getAttribute('aria-label') || btn.getAttribute('title') || '').toLowerCase();
+              const icon = (btn.querySelector('mat-icon, span')?.innerText || '').toLowerCase();
+              if (icon.includes('refresh') || icon.includes('replay') || icon.includes('redo') || icon.includes('retry') || bTxt.includes('retry') || bTxt.includes('try again') || bTxt.includes('regenerate')) {
+                btn.click();
+                return true;
+              }
+            }
+          }
         }
       }
-      return true;
+      return false;
     });
+  } catch (e) {
+    return false;
+  }
+}
+
+async function dismissFailedErrorCards(page) {
+  try {
+    return await page.evaluate(() => {
+      let dismissed = 0;
+      const elements = document.querySelectorAll('h1, h2, h3, h4, [role="alert"], div.tile-header, span, p, div');
+      for (const el of elements) {
+        const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+        if (txt.includes('unusual activity') || (txt.includes('failed') && txt.includes('not been charged'))) {
+          const card = el.closest('div.tile-container, div.card, div[class*="tile"], div[class*="card"], [role="region"], section') || el;
+          if (card) {
+            const actionBtns = card.querySelectorAll('button, [role="button"]');
+            for (const btn of actionBtns) {
+              const bTxt = (btn.innerText || btn.getAttribute('aria-label') || btn.getAttribute('title') || '').toLowerCase();
+              const icon = (btn.querySelector('mat-icon, span')?.innerText || '').toLowerCase();
+              if (bTxt.includes('delete') || icon.includes('delete') || icon.includes('delete_forever') || icon.includes('close') || bTxt.includes('dismiss')) {
+                try {
+                  btn.click();
+                  dismissed++;
+                  break;
+                } catch (e) {}
+              }
+            }
+          }
+        }
+      }
+      return dismissed;
+    });
+  } catch (e) {
+    return 0;
+  }
+}
+
+async function countFailedCards(page) {
+  try {
+    return await page.evaluate(() => {
+      const cards = new Set();
+      const elements = document.querySelectorAll('h1, h2, h3, h4, [role="alert"], div.tile-header, span, p, div');
+      for (const el of elements) {
+        const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+        if (txt.includes('unusual activity') || (txt.includes('failed') && txt.includes('not been charged'))) {
+          const card = el.closest('div.tile-container, div.card, div[class*="tile"], div[class*="card"], [role="region"], section') || el;
+          if (card) cards.add(card);
+        }
+      }
+      return cards.size;
+    });
+  } catch (e) {
+    return 0;
+  }
+}
+
+async function checkUnusualActivity(page, baselineErrorCount = 0) {
+  try {
+    const current = await countFailedCards(page);
+    return current > baselineErrorCount;
   } catch (e) {
     return false;
   }
@@ -645,14 +771,13 @@ async function ensureBrowserOpen() {
   try {
     const context = await chromium.launchPersistentContext(profileDir, {
       executablePath: chromeExe,
-      headless: true,
-      viewport: { width: 1280, height: 900 },
-      ignoreDefaultArgs: ['--enable-automation', '--no-sandbox'],
+      headless: false,
+      viewport: null,
+      ignoreDefaultArgs: ['--enable-automation', '--no-sandbox', '--disable-extensions'],
       args: [
         '--disable-blink-features=AutomationControlled',
         '--no-first-run',
         '--no-default-browser-check',
-        '--window-position=-32000,-32000',
         '--window-size=1280,900',
         '--disable-infobars',
         '--hide-crash-restore-bubble',
@@ -664,17 +789,8 @@ async function ensureBrowserOpen() {
       ]
     });
 
-    hideProcessWindows(profileDir);
-
     activeBrowserContext = context;
     latestDebugState.browserConnected = true;
-
-    await context.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-      try { delete navigator.__proto__.webdriver; } catch (e) {}
-      if (!window.chrome) { window.chrome = {}; }
-      window.chrome.runtime = window.chrome.runtime || { id: 'bdmfcdallkljfeejmglojaanbonjhbkb' };
-    });
 
     const page = context.pages()[0] || await context.newPage();
     await applyBackgroundWindowPlacement(context, page, 1);
@@ -703,36 +819,29 @@ async function launchWorkerContext(workerId = 1) {
   cleanupProfileLocks(profileDir);
   resetCrashFlags(profileDir);
 
-  console.log(`[Playwright Engine] 🚀 Launching Chrome Worker #${workerId} (Profile: ${profileDir}) [100% Background Live Canvas Mode]...`);
+  console.log(`[Playwright Engine] 🚀 Launching Chrome Worker #${workerId} (Profile: ${profileDir})...`);
+
+  const launchArgs = [
+    '--disable-blink-features=AutomationControlled',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--window-position=-3200,-3200',
+    '--window-size=1280,900',
+    '--disable-infobars',
+    '--hide-crash-restore-bubble',
+    '--disable-session-crashed-bubble',
+    '--noerrdialogs',
+    '--disable-component-update',
+    '--disable-notifications',
+    '--lang=en-US,en'
+  ];
 
   const context = await chromium.launchPersistentContext(profileDir, {
     executablePath: chromeExe,
-    headless: true,
-    viewport: { width: 1280, height: 900 },
-    ignoreDefaultArgs: ['--enable-automation', '--no-sandbox'],
-    args: [
-      '--disable-blink-features=AutomationControlled',
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--window-position=-32000,-32000',
-      '--window-size=1280,900',
-      '--disable-infobars',
-      '--hide-crash-restore-bubble',
-      '--disable-session-crashed-bubble',
-      '--noerrdialogs',
-      '--disable-component-update',
-      '--disable-notifications',
-      '--lang=en-US,en'
-    ]
-  });
-
-  hideProcessWindows(profileDir);
-
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    try { delete navigator.__proto__.webdriver; } catch (e) {}
-    if (!window.chrome) { window.chrome = {}; }
-    window.chrome.runtime = window.chrome.runtime || { id: 'bdmfcdallkljfeejmglojaanbonjhbkb' };
+    headless: false,
+    viewport: null,
+    ignoreDefaultArgs: ['--enable-automation', '--no-sandbox', '--disable-extensions'],
+    args: launchArgs
   });
 
   const page = context.pages()[0] || await context.newPage();
@@ -781,7 +890,7 @@ async function runSingleWorker({
 
     if (
       !isAvatarOrIcon &&
-      (url.includes('googleusercontent.com') || url.includes('media.getMediaUrlRedirect') || url.includes('/asb/')) &&
+      (url.includes('flow-content.google') || url.includes('googleusercontent.com') || url.includes('media.getMediaUrlRedirect') || url.includes('/asb/')) &&
       (res.headers()['content-type']?.includes('image') || url.includes('image') || url.includes('/asb/'))
     ) {
       if (!generatedImageUrls.includes(url)) {
@@ -790,17 +899,14 @@ async function runSingleWorker({
     }
   });
 
-  const flowUrl = targetUrl || 'https://flow.google.com/';
-  if (!page.url().includes('/project/')) {
-    await page.goto(flowUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await safeWait(2500);
-
-    // 1. Check if user is redirected to Google login
+  console.log(`[Worker #${workerId}] Initializing fresh Google Flow canvas project...`);
+  let editor = await createNewProject(page);
+  const editorFound = await editor.waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false);
+  if (!editorFound) {
     const curUrl = page.url();
     const isLoginPage = curUrl.includes('accounts.google.com') ||
                         curUrl.includes('/signin') ||
                         curUrl.includes('/ServiceLogin');
-
     if (isLoginPage) {
       console.warn(`[Worker #${workerId}] ⚠️ Not logged in to Google! (URL: ${curUrl})`);
       if (onProgress) {
@@ -810,68 +916,15 @@ async function runSingleWorker({
           message: `⚠️ Chrome #${workerId} is not signed into Google. Scenes reassigned to active worker.`
         });
       }
-      try { await workerObj.context.close(); } catch (e) {}
-      activeWorkerPool.delete(workerId);
-      return { workerId, notLoggedIn: true, unhandledItems: items, completedCount: 0 };
-    }
-
-    // If landed on /about landing page, click "Create with Google Flow"
-    if (page.url().includes('/about')) {
-      const createWithFlowBtn = page.locator('button:has-text("Create with Google Flow"), a:has-text("Create with Google Flow"), [role="button"]:has-text("Create with Google Flow")').first();
-      if (await createWithFlowBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
-        console.log(`[Worker #${workerId}] Landing page detected (/about). Clicking "Create with Google Flow"...`);
-        await createWithFlowBtn.click();
-        await safeWait(3000);
-      }
-    }
-
-    // Re-check if redirected to Google login
-    const afterCheckUrl = page.url();
-    if (afterCheckUrl.includes('accounts.google.com') || afterCheckUrl.includes('/signin') || afterCheckUrl.includes('/ServiceLogin')) {
-      console.warn(`[Worker #${workerId}] ⚠️ Redirected to Google login! (URL: ${afterCheckUrl})`);
+    } else {
+      console.warn(`[Worker #${workerId}] ⚠️ Google Flow canvas editor not accessible (URL: ${curUrl})`);
       if (onProgress) {
         onProgress({
           workerId,
-          status: 'not_logged_in',
-          message: `⚠️ Chrome #${workerId} is not signed into Google. Scenes reassigned to active worker.`
+          status: 'editor_missing',
+          message: `⚠️ Chrome #${workerId}: Canvas not accessible. Reassigning scenes...`
         });
       }
-      try { await workerObj.context.close(); } catch (e) {}
-      activeWorkerPool.delete(workerId);
-      return { workerId, notLoggedIn: true, unhandledItems: items, completedCount: 0 };
-    }
-
-    const newBtn = page.locator('button.new-project-button, button:has-text("New project"), [role="button"]:has-text("New project"), .mat-focus-indicator:has-text("New project")').first();
-    if (await newBtn.isVisible({ timeout: 15000 }).catch(() => false)) {
-      console.log(`[Worker #${workerId}] Clicking "New project"...`);
-      await newBtn.click();
-      await page.waitForURL('**/project/**', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
-    }
-  }
-
-  // If still not on /project/, retry clicking New project button
-  if (!page.url().includes('/project/')) {
-    const retryNewBtn = page.locator('button.new-project-button, button:has-text("New project"), [role="button"]:has-text("New project")').first();
-    if (await retryNewBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log(`[Worker #${workerId}] Retrying "New project" click...`);
-      await retryNewBtn.click();
-      await page.waitForURL('**/project/**', { timeout: 20000 }).catch(() => {});
-    }
-  }
-
-  await safeWait(2500);
-  await ensureDirectCanvasMode(page);
-
-  let editor = page.locator('div.ProseMirror').first();
-  const editorFound = await editor.waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false);
-  if (!editorFound) {
-    console.warn(`[Worker #${workerId}] ⚠️ Google Flow canvas editor not accessible (login needed or canvas blocked)`);
-    if (onProgress) {
-      onProgress({
-        workerId,
-        status: 'editor_missing',
-        message: `⚠️ Chrome #${workerId}: Canvas not accessible. Reassigning scenes...`
-      });
     }
     try { await workerObj.context.close(); } catch (e) {}
     activeWorkerPool.delete(workerId);
@@ -926,18 +979,30 @@ async function runSingleWorker({
         }
       }
 
+      // Dismiss any open menus or overlays first
+      await page.keyboard.press('Escape').catch(() => {});
+      await safeWait(200);
+
       // Ensure direct canvas mode before each scene prompt
       await ensureDirectCanvasMode(page);
       editor = page.locator('div.ProseMirror').first();
+      await editor.waitFor({ state: 'visible', timeout: 15000 });
 
-      // 1-Shot prompt paste into ProseMirror
+      // Focus editor and clear previous text
       await editor.click();
-      await safeWait(120);
+      await safeWait(150);
       await page.keyboard.press('Control+A');
-      await safeWait(60);
-      await page.keyboard.insertText(prompt);
-      await safeWait(200);
+      await safeWait(80);
+      await page.keyboard.press('Backspace');
+      await safeWait(100);
 
+      // Humanized typing: insert prompt + space with typing delay (fires real keyboard/input events)
+      await page.keyboard.insertText(prompt);
+      await safeWait(150);
+      await page.keyboard.type(' ', { delay: 60 });
+      await safeWait(250);
+
+      // Fallback verification in ProseMirror DOM
       await page.evaluate((txt) => {
         const el = document.querySelector('div.ProseMirror');
         if (!el) return;
@@ -945,21 +1010,25 @@ async function runSingleWorker({
         if (!cur || cur.length < 5) {
           el.focus();
           document.execCommand('selectAll', false, null);
-          document.execCommand('insertText', false, txt);
+          document.execCommand('insertText', false, txt + ' ');
         }
       }, prompt);
 
-      await safeWait(300);
+      // Human-like pause before clicking Generate (critical for reCAPTCHA Enterprise bot score)
+      await safeWait(1200);
 
       const baselineImages = await page.$$eval('img', els => els
-        .filter(e => (e.alt && e.alt.includes("user's image")) || (e.src && e.src.includes('/asb/')))
+        .filter(e => (e.alt && (e.alt.includes("user's image") || e.alt.includes("image"))) || (e.src && (e.src.includes('flow-content.google') || e.src.includes('/asb/'))))
         .map(e => e.src)
       ).catch(() => []);
+      const baselineFailedCards = await countFailedCards(page);
       const networkStartIndex = generatedImageUrls.length;
 
-      // Click Generate
-      const genBtn = page.locator('button[aria-label="Start generation"], button.generate-icon-button').first();
+      // Click Generate with mouse hover
+      const genBtn = page.locator('button[aria-label="Start generation"], button.generate-icon-button, button:has(mat-icon:has-text("arrow_forward")), button:has(span:has-text("arrow_forward"))').first();
       await genBtn.waitFor({ state: 'visible', timeout: 10000 });
+      await genBtn.hover().catch(() => {});
+      await safeWait(200);
       await genBtn.click();
 
       // Wait for image with unusual activity detection
@@ -975,14 +1044,7 @@ async function runSingleWorker({
 
         if (!page || page.isClosed()) break;
 
-        const isUnusual = await checkUnusualActivity(page);
-        if (isUnusual) {
-          console.warn(`[Worker #${workerId}] ⚠️ Google Flow 'Unusual Activity' detected during scene ${globalSceneIndex}!`);
-          unusualDetected = true;
-          break;
-        }
-
-        // Check network images
+        // 1. Check network images first
         const newlyArrivedUrls = generatedImageUrls.slice(networkStartIndex);
         const trulyNewNetworkUrls = newlyArrivedUrls.filter(u => !baselineImages.includes(u));
         if (trulyNewNetworkUrls.length > 0) {
@@ -990,9 +1052,9 @@ async function runSingleWorker({
           break;
         }
 
-        // Check canvas img DOM
+        // 2. Check canvas img DOM
         const currentTileImages = await page.$$eval('img', els => els
-          .filter(e => (e.alt && e.alt.includes("user's image")) || (e.src && e.src.includes('/asb/')))
+          .filter(e => (e.alt && (e.alt.includes("user's image") || e.alt.includes("image"))) || (e.src && (e.src.includes('flow-content.google') || e.src.includes('/asb/'))))
           .map(e => e.src)
         ).catch(() => []);
         const newImages = currentTileImages.filter(src => !baselineImages.includes(src));
@@ -1000,47 +1062,63 @@ async function runSingleWorker({
           generatedUrl = newImages[newImages.length - 1];
           break;
         }
+
+        // 3. Only check for unusual activity if at least 6 seconds have elapsed (gives Google Flow time to process)
+        if (Date.now() - genStartTime > 6000) {
+          const isUnusual = await checkUnusualActivity(page, baselineFailedCards);
+          if (isUnusual) {
+            console.warn(`[Worker #${workerId}] ⚠️ Google Flow 'Unusual Activity' detected during scene ${globalSceneIndex}!`);
+            unusualDetected = true;
+            break;
+          }
+        }
       }
 
       if (!generatedUrl && !unusualDetected && page && !page.isClosed()) {
-        unusualDetected = await checkUnusualActivity(page);
+        unusualDetected = await checkUnusualActivity(page, baselineFailedCards);
       }
 
       // Auto-Recovery pipeline
       if (unusualDetected) {
         currentSceneRetries++;
-        console.warn(`[Worker #${workerId}] 🔄 Auto-Recovery attempt ${currentSceneRetries} for scene ${globalSceneIndex}...`);
+        console.warn(`[Worker #${workerId}] 🔄 Auto-Recovery attempt ${currentSceneRetries}/3 for scene ${globalSceneIndex}...`);
         await page.keyboard.press('Escape').catch(() => {});
 
-        if (currentSceneRetries === 1) {
+        if (currentSceneRetries <= 2) {
           if (onProgress) {
             onProgress({
               workerId,
               status: 'unusual_recovery',
               sceneIndex: globalSceneIndex,
-              message: `Chrome #${workerId}: Unusual activity detected. Switching to fresh canvas project...`
+              message: `Chrome #${workerId}: Unusual activity detected. Auto-clearing tainted canvas & opening fresh project...`
             });
           }
-          await safeWait(5000);
+          await dismissFailedErrorCards(page);
+          await safeWait(1000);
+          await clearFlowSiteData(page);
+          await safeWait(1500);
           editor = await createNewProject(page);
-          idx--; // Retry same scene
+          await safeWait(2000);
+          idx--; // Retry same scene in fresh project
           continue;
-        } else if (currentSceneRetries === 2) {
+        } else if (currentSceneRetries === 3) {
           if (onProgress) {
             onProgress({
               workerId,
-              status: 'clearing_cache',
+              status: 'cooldown_retry',
               sceneIndex: globalSceneIndex,
-              message: `Chrome #${workerId}: Clearing Flow cache and reloading...`
+              message: `Chrome #${workerId}: Rate limit cooldown (8s) before final retry...`
             });
           }
+          await dismissFailedErrorCards(page);
+          await safeWait(8000);
           await clearFlowSiteData(page);
-          await safeWait(4000);
           editor = await createNewProject(page);
-          idx--; // Retry same scene
+          await safeWait(2500);
+          idx--; // Final retry
           continue;
         } else {
-          console.error(`[Worker #${workerId}] ❌ Scene ${globalSceneIndex} failed after 2 retries.`);
+          console.error(`[Worker #${workerId}] ❌ Scene ${globalSceneIndex} failed after 3 retries.`);
           currentSceneRetries = 0;
           unhandledItems.push(item);
           continue;
@@ -1049,7 +1127,7 @@ async function runSingleWorker({
 
       currentSceneRetries = 0;
 
-      // Save image to Downloads/turboflow
+      // Save image to Downloads/easyaihub
       const safeProjectName = projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
       const padIdx = String(globalSceneIndex).padStart(3, '0');
       const filename = `${safeProjectName}_scene_${padIdx}.png`;
@@ -1130,6 +1208,26 @@ async function runSingleWorker({
       }
     } catch (sceneErr) {
       console.warn(`[Worker #${workerId}] ⚠️ Scene ${globalSceneIndex} error:`, sceneErr.message);
+      if (onProgress) {
+        onProgress({
+          workerId,
+          status: 'scene_error',
+          sceneIndex: globalSceneIndex,
+          message: `Chrome #${workerId}: Scene ${globalSceneIndex} issue (${sceneErr.message.slice(0, 45)}). Auto-recovering...`
+        });
+      }
+      await page.keyboard.press('Escape').catch(() => {});
+      await safeWait(1000);
+      if (currentSceneRetries < 2) {
+        currentSceneRetries++;
+        try {
+          editor = await createNewProject(page);
+          await safeWait(2000);
+          idx--; // Retry this scene
+          continue;
+        } catch (e) {}
+      }
+      currentSceneRetries = 0;
       if (sceneErr.message && (sceneErr.message.includes('closed') || sceneErr.message.includes('Target page'))) {
         activeWorkerPool.delete(workerId);
       }
@@ -1152,7 +1250,7 @@ async function runPlaywrightBatch({
   targetUrl
 }) {
   if (isJobRunning) {
-    throw new Error('A generation job is already running in Flow Auto Studio.');
+    throw new Error('A generation job is already running in Easy AI Hub.');
   }
 
   isJobRunning = true;
@@ -1161,7 +1259,7 @@ async function runPlaywrightBatch({
   // Parallel Worker Selection:
   // Respect user's selected worker count (1, 2, 3, 5, or 7 Chromes from UI).
   // Distribute across up to totalPrompts (cannot have more workers than prompts).
-  let requestedWorkers = (workerCount && Number(workerCount) > 0) ? Number(workerCount) : 7;
+  let requestedWorkers = (workerCount && Number(workerCount) > 0) ? Number(workerCount) : 1;
   let numWorkers = Math.min(requestedWorkers, totalPrompts, 7);
 
   console.log(`[Playwright Orchestrator] 🚀 Planning ${numWorkers} parallel Chrome worker(s) for ${totalPrompts} prompts (Requested: ${requestedWorkers} workers)...`);
@@ -1324,6 +1422,11 @@ function stopJob() {
     } catch (e) {}
   }
   activeWorkerPool.clear();
+  if (activeBrowserContext) {
+    try {
+      activeBrowserContext.close().catch(() => {});
+    } catch (e) {}
+  }
   activeBrowserContext = null;
   isJobRunning = false;
 }

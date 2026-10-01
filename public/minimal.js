@@ -81,7 +81,9 @@ btnGenerate?.addEventListener('click', async () => {
     prompts = getPromptsList();
   }
 
-  const workerCount = parseInt(workerSelect?.value, 10) || 7;
+  const modeSelect = document.getElementById('mode-select');
+  const generationMode = 'playwright';
+  const workerCount = parseInt(workerSelect?.value, 10) || 1;
   const projectName = 'Project_' + Date.now().toString().slice(-6);
 
   btnGenerate.disabled = true;
@@ -97,6 +99,7 @@ btnGenerate?.addEventListener('click', async () => {
       body: JSON.stringify({
         prompts,
         projectName,
+        generationMode,
         workerCount,
         speedMode: 'fast',
         imageQuality: 'standard',
@@ -120,11 +123,11 @@ function showProgressUI(totalPrompts, workerCount) {
   if (progressContainer) {
     progressContainer.style.display = 'block';
     progressFill.style.width = '0%';
-    progressLabel.textContent = `Starting ${workerCount} Chrome Workers for ${totalPrompts} scene(s)...`;
+    progressLabel.textContent = `Starting ${workerCount} Channels for ${totalPrompts} scene(s)...`;
     progressPercent.textContent = '0%';
   }
   if (statusDot) statusDot.classList.add('generating');
-  if (statusText) statusText.textContent = `Generating with ${workerCount} Workers`;
+  if (statusText) statusText.textContent = `Generating with ${workerCount} Channels`;
 }
 
 function resetGenerateButton() {
